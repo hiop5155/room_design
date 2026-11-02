@@ -57,6 +57,7 @@ export default function Header({
 
   // Google 登入觸發
   const handleGoogleAuth = useGoogleLogin({
+    ux_mode: isMobile ? 'redirect' : 'popup',
     onSuccess: async (tokenResponse) => {
       // 確保無論 Google OAuth 是否附加了回呼 query/hash，立即還原純淨乾淨 URL
       if (typeof window !== 'undefined' && (window.location.search || window.location.hash)) {
@@ -64,7 +65,7 @@ export default function Header({
           window.history.replaceState(null, '', window.location.origin + window.location.pathname);
         } catch { }
       }
-      if (onLoginSuccess) {
+      if (onLoginSuccess && tokenResponse?.access_token) {
         try {
           const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
@@ -91,15 +92,17 @@ export default function Header({
     },
   });
 
-  const areaM2 = ((space.length * space.width) / 1000000).toFixed(1);
-  const areaPing = (areaM2 * 0.3025).toFixed(1);
+  const sLen = Number(space?.length) || 5300;
+  const sWid = Number(space?.width) || 19830;
+  const areaM2 = ((sLen * sWid) / 1000000).toFixed(1);
+  const areaPing = (Number(areaM2) * 0.3025).toFixed(1);
 
   if (isMobile) {
     return (
       <header style={styles.mobileHeader}>
         {/* Left: Space Name & Ping Badge */}
         <div style={styles.mobileBrandGroup}>
-          <span style={styles.mobileSpaceName}>{space.name}</span>
+          <span style={styles.mobileSpaceName}>{space?.name || '當前方案'}</span>
           <span style={styles.mobileBadge}>{areaPing} 坪</span>
         </div>
 
@@ -346,9 +349,9 @@ export default function Header({
       <div style={styles.brandGroup}>
         <div style={styles.spaceInfo}>
           <div style={styles.spaceNameRow}>
-            <span style={styles.spaceName}>{space.name}</span>
+            <span style={styles.spaceName} title={space?.name || '當前方案'}>{space?.name || '當前方案'}</span>
             <span style={styles.dimensionBadge}>
-              {(space.length / 1000).toFixed(2)}m × {(space.width / 1000).toFixed(2)}m · {areaPing} 坪 ({areaM2} m²)
+              {(sLen / 1000).toFixed(2)}m × {(sWid / 1000).toFixed(2)}m · {areaPing} 坪
             </span>
           </div>
         </div>
@@ -358,46 +361,15 @@ export default function Header({
           style={styles.newSpaceBtn}
           title="建立自訂尺寸空白空間或載入範本"
         >
-          <span>📐 自訂空間尺寸 / 換戶型</span>
+          <span>📐 尺寸/換戶型</span>
         </button>
-
-        {onAutoDetectRooms && (
-          <button
-            onClick={onAutoDetectRooms}
-            style={{
-              ...styles.presetQuickBtn,
-              backgroundColor: '#fff7ed',
-              color: '#ea580c',
-              borderColor: '#fdba74',
-              fontWeight: 700,
-            }}
-            title="一鍵根據室內隔間牆自動辨識封閉空間，生成彩色地坪、標籤與精準坪數"
-          >
-            <span>⚡ 自動辨識格局區域</span>
-          </button>
-        )}
-
-        {onAddCustomRoom && (
-          <button
-            onClick={() => onAddCustomRoom('自訂全新分區', 'wood')}
-            style={{
-              ...styles.presetQuickBtn,
-              backgroundColor: '#f8fafc',
-              color: '#334155',
-              borderColor: '#cbd5e1',
-            }}
-            title="新增一個自訂空間多邊形區域"
-          >
-            <span>＋ 新增區域</span>
-          </button>
-        )}
 
         <button
           onClick={onResetToBlueprint}
           style={styles.presetQuickBtn}
           title="重設為預設三分離衛浴格局"
         >
-          <span>🔄 重設為標準格局</span>
+          <span>🔄 重設</span>
         </button>
 
         <span
@@ -406,16 +378,17 @@ export default function Header({
             color: '#15803d',
             backgroundColor: '#f0fdf4',
             border: '1px solid #bbf7d0',
-            padding: '4px 8px',
+            padding: '3px 7px',
             borderRadius: '12px',
             fontWeight: 700,
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '4px',
+            gap: '3px',
+            flexShrink: 0,
           }}
           title="您在瀏覽器中的所有更動 (家具與隔間牆) 均會即時自動暫存至 localStorage，重新整理頁面不會遺失！"
         >
-          ● 瀏覽器即時暫存
+          ● 已暫存
         </span>
       </div>
 
@@ -428,7 +401,7 @@ export default function Header({
           }}
           onClick={() => setViewMode('2d')}
         >
-          <span>📐 2D 平面圖</span>
+          <span>📐 2D</span>
         </button>
         <button
           style={{
@@ -437,7 +410,7 @@ export default function Header({
           }}
           onClick={() => setViewMode('3d')}
         >
-          <span>🏠 3D 立體實境</span>
+          <span>🏠 3D</span>
         </button>
       </div>
 
@@ -450,7 +423,7 @@ export default function Header({
                 ...styles.layerBtn,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '3px',
                 backgroundColor: isPlanLocked ? '#fef3c7' : '#f0fdf4',
                 color: isPlanLocked ? '#b45309' : '#15803d',
                 borderColor: isPlanLocked ? '#f59e0b' : '#22c55e',
@@ -459,7 +432,7 @@ export default function Header({
               onClick={onToggleLock}
               title={isPlanLocked ? '格局與家具已鎖定 (點擊解鎖以進行搬動或修改)' : '格局編輯模式中 (點擊鎖定防誤觸)'}
             >
-              <span>{isPlanLocked ? '🔒 格局已鎖定' : '🔓 編輯模式'}</span>
+              <span>{isPlanLocked ? '🔒 鎖定' : '🔓 編輯'}</span>
             </button>
           )}
 
@@ -499,7 +472,7 @@ export default function Header({
                 ...styles.layerBtn,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '3px',
               }}
               onClick={onRotatePlan}
               title={`旋轉 2D 平面圖視角 (每次旋轉 90 度，當前 ${planRotation}°)`}
@@ -507,7 +480,7 @@ export default function Header({
               <span style={{ display: 'inline-block', transform: `rotate(${planRotation}deg)`, transition: 'transform 0.25s' }}>
                 🔄
               </span>
-              <span>轉向 ({planRotation % 180 === 0 ? '直向' : '橫向'})</span>
+              <span>轉向</span>
             </button>
           )}
         </div>
@@ -542,7 +515,7 @@ export default function Header({
 
         <div style={styles.divider} />
 
-        {/* 右側最末：Google雲端同步狀態 */}
+        {/* 右側最末：Google雲端同步狀態與登入 */}
         <div style={styles.authGroup}>
           <div style={styles.syncBadge} title="Google 雲端同步狀態">
             <span
@@ -582,25 +555,8 @@ export default function Header({
               onClick={() => handleGoogleAuth()}
               title="透過 Google 登入以跨裝置儲存與同步方案"
             >
-              <svg style={styles.googleIcon} viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.9c2.28-2.1 3.645-5.2 3.645-9.15z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.9-3.05c-1.08.72-2.45 1.16-4.03 1.16-3.1 0-5.74-2.09-6.68-4.91H1.21v3.15C3.25 21.41 7.34 24 12 24z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.32 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.56H1.21C.44 8.09 0 9.99 0 12s.44 3.91 1.21 5.44l4.11-3.15z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.59 1.21 6.56l4.11 3.15c.94-2.82 3.58-4.96 6.68-4.96z"
-                />
-              </svg>
-              <span>登入</span>
+              <GoogleIcon size={14} />
+              <span>Google 登入</span>
             </button>
           )}
         </div>
@@ -860,7 +816,7 @@ const styles = {
 
   // Desktop Header Styles
   header: {
-    height: '56px',
+    height: '52px',
     backgroundColor: '#ffffff',
     borderBottom: '1px solid #e6e1d6',
     display: 'flex',
@@ -871,8 +827,10 @@ const styles = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
     userSelect: 'none',
     overflowX: 'auto',
+    overflowY: 'hidden',
+    flexWrap: 'nowrap',
     whiteSpace: 'nowrap',
-    gap: '12px',
+    gap: '8px',
   },
   brandGroup: {
     display: 'flex',
@@ -909,14 +867,14 @@ const styles = {
     fontSize: '13px',
     fontWeight: 700,
     color: '#1c1917',
-    maxWidth: '220px',
+    maxWidth: '120px',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
   dimensionBadge: {
     fontSize: '11px',
-    padding: '2px 8px',
+    padding: '2px 6px',
     borderRadius: '12px',
     backgroundColor: '#f5f5f4',
     color: '#78716c',
@@ -928,7 +886,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
-    padding: '4px 8px',
+    padding: '3px 7px',
     borderRadius: '6px',
     border: '1px solid #c2410c',
     backgroundColor: '#fffaf5',
@@ -943,7 +901,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '3px',
-    padding: '4px 7px',
+    padding: '3px 6px',
     borderRadius: '6px',
     border: '1px solid #d6d3d1',
     backgroundColor: '#f5f5f4',
@@ -963,7 +921,7 @@ const styles = {
     flexShrink: 0,
   },
   toggleBtn: {
-    padding: '4px 12px',
+    padding: '3px 10px',
     border: 'none',
     backgroundColor: 'transparent',
     color: '#78716c',
@@ -982,7 +940,7 @@ const styles = {
   actionsGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
     flexShrink: 0,
   },
   layerToggles: {
@@ -993,7 +951,7 @@ const styles = {
     flexShrink: 0,
   },
   layerBtn: {
-    padding: '4px 10px',
+    padding: '3px 8px',
     border: 'none',
     backgroundColor: 'transparent',
     color: '#a8a29e',
@@ -1011,12 +969,12 @@ const styles = {
   fileActions: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '4px',
     flexShrink: 0,
   },
   iconBtn: {
-    padding: '5px 10px',
-    fontSize: '12px',
+    padding: '4px 8px',
+    fontSize: '11px',
     fontWeight: 500,
     border: '1px solid #e7e5e4',
     borderRadius: '6px',
@@ -1026,8 +984,8 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   importLabel: {
-    padding: '5px 10px',
-    fontSize: '12px',
+    padding: '4px 8px',
+    fontSize: '11px',
     fontWeight: 500,
     border: '1px solid #e7e5e4',
     borderRadius: '6px',

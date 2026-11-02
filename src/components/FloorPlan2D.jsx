@@ -46,21 +46,23 @@ export default function FloorPlan2D({
   const currentRotation = planRotation !== undefined ? planRotation : internalRotation;
   const handleToggleRotate = onRotatePlan || (() => setInternalRotation((prev) => (prev + 90) % 360));
 
-  const L = space.length;
-  const W = space.width;
+  const L = Number(space?.length) || 5300;
+  const W = Number(space?.width) || 19830;
   const margin = 1200; // 外圍預留標註尺寸邊界
 
-  // 當前活躍方案的位移世界坐標
-  const spaceOx = space.offset ? space.offset[0] : 0;
-  const spaceOy = space.offset ? space.offset[1] : 0;
+  // 當前活躍方案的位移世界坐標與當前單元中心
+  const spaceOx = space?.offset ? space.offset[0] : 0;
+  const spaceOy = space?.offset ? space.offset[1] : 0;
+  const curCenterX = spaceOx + L / 2;
+  const curCenterY = spaceOy + W / 2;
 
   // 取得其他並排對照的可見方案
   const comparisonUnits = (units || []).filter(
-    (u) => u.id !== space.id && u.visible !== false
+    (u) => u.id !== space?.id && u.visible !== false
   );
 
-  // 視野中心 (世界座標 mm)，初始居中在空間中央
-  const [viewCenter, setViewCenter] = useState({ x: L / 2 + spaceOx, y: W / 2 + spaceOy });
+  // 視野中心 (世界座標 mm)，初始居中在當前活躍方案中央
+  const [viewCenter, setViewCenter] = useState({ x: curCenterX, y: curCenterY });
   // 縮放倍率
   const [zoom, setZoom] = useState(isMobile ? 0.75 : 1);
   // 當前聚焦分區
@@ -68,7 +70,7 @@ export default function FloorPlan2D({
 
   // 平移與拖曳狀態
   const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = useRef({ x: 0, y: 0, startCenterX: L / 2, startCenterY: W / 2 });
+  const panStartRef = useRef({ x: 0, y: 0, startCenterX: curCenterX, startCenterY: curCenterY });
   const [dragState, setDragState] = useState(null);
   const [wallDragState, setWallDragState] = useState(null);
   const [doorDragState, setDoorDragState] = useState(null);
@@ -82,24 +84,36 @@ export default function FloorPlan2D({
     isPinching: false,
     startClientX: 0,
     startClientY: 0,
-    startCenterX: L / 2,
-    startCenterY: W / 2,
+    startCenterX: curCenterX,
+    startCenterY: curCenterY,
   });
 
-  // 座標旋轉換算 (以中心為軸旋轉)
+  // 座標旋轉換算 (永遠以當前選取之方案中心 curCenterX, curCenterY 為軸旋轉)
   const getRotatedPoint = (px, py, angleDeg) => {
     const rad = (angleDeg * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
-    const dx = px - L / 2;
-    const dy = py - W / 2;
+    const worldX = px + spaceOx;
+    const worldY = py + spaceOy;
+    const dx = worldX - curCenterX;
+    const dy = worldY - curCenterY;
     return {
-      x: L / 2 + dx * cos - dy * sin,
-      y: W / 2 + dx * sin + dy * cos,
+      x: curCenterX + dx * cos - dy * sin,
+      y: curCenterY + dx * sin + dy * cos,
     };
   };
 
-  // 當切換空間或有指定 URL Hash 時定位視角
+  // 當使用者在頂部切換方案時，視野自動平滑對準該方案中心
+  useEffect(() => {
+    if (!space) return;
+    const curL = Number(space.length) || 5300;
+    const curW = Number(space.width) || 19830;
+    const curOx = space.offset ? space.offset[0] : 0;
+    const curOy = space.offset ? space.offset[1] : 0;
+    setViewCenter({ x: curOx + curL / 2, y: curOy + curW / 2 });
+  }, [space?.id, spaceOx, spaceOy]);
+
+  // 當切換分區或有指定 URL Hash 時定位視角
   useEffect(() => {
     const handleHash = () => {
       const hash = (window.location.hash || '').replace('#', '');
@@ -109,15 +123,12 @@ export default function FloorPlan2D({
         const target = getRotatedPoint(matchedZone.x, matchedZone.y, currentRotation);
         setViewCenter(target);
         setZoom(isMobile ? 1.8 : 2.1);
-      } else {
-        setViewCenter({ x: space.length / 2, y: space.width / 2 });
-        setZoom(isMobile ? 0.75 : 1);
       }
     };
     handleHash();
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
-  }, [space.length, space.width, isMobile, currentRotation]);
+  }, [space?.id, isMobile, currentRotation]);
 
   // 鍵盤操作 (R 旋轉選中家具，O 旋轉整張平面圖)
   useEffect(() => {
@@ -1478,15 +1489,15 @@ export default function FloorPlan2D({
           </marker>
         </defs>
 
-        {/* 全域旋轉容器 (支援 0°, 90°, 180°, 270° 一鍵橫向/直向轉向，連動逆向坐標映射) */}
-        <g ref={rotGroupRef} transform={`rotate(${currentRotation}, ${L / 2}, ${W / 2})`}>
+        {/* 全域旋轉容器 (永遠以當前選取的方案中心 curCenterX, curCenterY 為軸旋轉) */}
+        <g ref={rotGroupRef} transform={`rotate(${currentRotation}, ${curCenterX}, ${curCenterY})`}>
           {showGrid && (
             <rect
               id="bg-grid"
-              x={-margin * 3}
-              y={-margin * 3}
-              width={L + margin * 6}
-              height={W + margin * 6}
+              x={curCenterX - 40000}
+              y={curCenterY - 40000}
+              width={80000}
+              height={80000}
               fill="url(#bg-grid-pat)"
             />
           )}
@@ -2285,15 +2296,21 @@ export default function FloorPlan2D({
         </button>
         <button
           style={{ ...styles.floatingBtn, ...(isMobile ? styles.mobileFloatingBtn : {}) }}
-          onClick={() => setViewCenter((prev) => ({ ...prev, x: Math.max(margin, prev.x - 3000 / zoom) }))}
-          title="向左平移"
+          onClick={() => {
+            const step = Math.round(2500 / zoom);
+            setViewCenter((prev) => ({ ...prev, x: prev.x - step }));
+          }}
+          title="向左平移視角"
         >
           ◀
         </button>
         <button
           style={{ ...styles.floatingBtn, ...(isMobile ? styles.mobileFloatingBtn : {}) }}
-          onClick={() => setViewCenter((prev) => ({ ...prev, x: Math.min(L - margin / 2, prev.x + 3000 / zoom) }))}
-          title="向右平移"
+          onClick={() => {
+            const step = Math.round(2500 / zoom);
+            setViewCenter((prev) => ({ ...prev, x: prev.x + step }));
+          }}
+          title="向右平移視角"
         >
           ▶
         </button>
@@ -2301,9 +2318,9 @@ export default function FloorPlan2D({
           style={{ ...styles.floatingBtn, ...(isMobile ? styles.mobileFloatingBtn : {}) }}
           onClick={() => {
             setZoom(isMobile ? 0.75 : 1);
-            setViewCenter({ x: L / 2, y: W / 2 });
+            setViewCenter({ x: curCenterX, y: curCenterY });
           }}
-          title="重置視圖至中心"
+          title="重置視圖至當前選中方案中心"
         >
           ⌖
         </button>

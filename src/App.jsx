@@ -54,10 +54,78 @@ const INITIAL_SCHEMES = [
   },
 ];
 
+// ★ 嚴格檢驗與修補空間物件 (確保 100% 具備長寬與幾何，杜絕 NaN 坪與白屏崩潰)
+function sanitizeSpaceData(rawSpace, defaultName = '未命名方案') {
+  if (!rawSpace || typeof rawSpace !== 'object') {
+    return JSON.parse(JSON.stringify(BLUEPRINT_PROJECT));
+  }
+
+  // 1. 長度與寬度防呆：必須為合法正數 (>= 500mm)，否則安全回退
+  let length = Number(rawSpace.length);
+  let width = Number(rawSpace.width);
+  if (isNaN(length) || length < 500) length = 5300;
+  if (isNaN(width) || width < 500) width = 19830;
+  let height = Number(rawSpace.height);
+  if (isNaN(height) || height < 500) height = 2800;
+
+  // 2. 名稱安全保護
+  const name = (typeof rawSpace.name === 'string' && rawSpace.name.trim())
+    ? rawSpace.name.trim()
+    : defaultName;
+
+  // 3. 牆體數組安全保護
+  let walls = Array.isArray(rawSpace.walls) && rawSpace.walls.length > 0
+    ? rawSpace.walls
+    : JSON.parse(JSON.stringify(BLUEPRINT_PROJECT.walls));
+
+  // 4. 門扇與家具數組安全保護
+  let doors = Array.isArray(rawSpace.doors) ? rawSpace.doors : [];
+  let furniture = Array.isArray(rawSpace.furniture) ? rawSpace.furniture : [];
+
+  // 5. 房間分區安全保護
+  let rooms = Array.isArray(rawSpace.rooms) && rawSpace.rooms.length > 0 ? rawSpace.rooms : null;
+  if (!rooms) {
+    rooms = [{
+      id: 'main_space',
+      name: '自訂開放空間',
+      poly: [[0, 0], [length, 0], [length, width], [0, width]],
+      mat: 'wood',
+      at: [Math.round(length / 2), Math.round(width / 2)],
+      areaM2: Number(((length * width) / 1000000).toFixed(1)),
+      areaPing: Number((((length * width) / 1000000) * 0.3025).toFixed(1)),
+    }];
+  }
+
+  // 6. offset 位移坐標安全保護
+  let offset = [0, 0];
+  if (Array.isArray(rawSpace.offset) && rawSpace.offset.length === 2) {
+    const ox = Number(rawSpace.offset[0]);
+    const oy = Number(rawSpace.offset[1]);
+    offset = [isNaN(ox) ? 0 : ox, isNaN(oy) ? 0 : oy];
+  }
+
+  return {
+    ...rawSpace,
+    id: rawSpace.id || `unit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name,
+    length,
+    width,
+    height,
+    walls,
+    doors,
+    furniture,
+    rooms,
+    offset,
+    visible: rawSpace.visible !== false,
+  };
+}
+
 // 自動檢查並升級舊版格式資料
 function migrateSpaceData(rawSpace) {
-  if (!rawSpace || !rawSpace.furniture) return rawSpace;
-  const migrated = { ...rawSpace };
+  if (!rawSpace || typeof rawSpace !== 'object') return rawSpace;
+  // 先通過嚴格格式防呆與修補，保證長寬非 NaN
+  const sanitized = sanitizeSpaceData(rawSpace, rawSpace.name || '歷史方案');
+  const migrated = { ...sanitized };
 
   // 若南側垂直隔間牆仍為舊位置 x < 2400 或未升級為最新三分離
   const needsSouthUpgrade = (migrated.walls && migrated.walls.some(w => w[5] === 'w_kitchen_west' && w[0] < 2400))
@@ -140,7 +208,9 @@ export default function App() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return recalculateSchemeOffsets(parsed, 'horizontal');
+            // ★ 自我修復：確保每個方案長寬健全，防止髒快取引發 NaN 與白屏
+            const sanitized = parsed.map((u) => sanitizeSpaceData(u));
+            return recalculateSchemeOffsets(sanitized, 'horizontal');
           }
         }
       } catch (e) {
@@ -165,13 +235,42 @@ export default function App() {
   const [user, setUser] = useState(() => getStoredUser());
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
 
-  // 從 IndexedDB 離線快取非同步載入專案
+  // ★ 監聽並自動捕獲 Google OAuth 回傳的 access_token (徹底根治手機端開新分頁留空白的問題)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    if (hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace(/^#/, ''));
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+          .then((res) => res.json())
+          .then((gInfo) => {
+            handleLoginSuccess(accessToken, {
+              id: gInfo.sub,
+              email: gInfo.email,
+              name: gInfo.name,
+              avatar: gInfo.picture,
+            });
+          })
+          .catch((err) => console.error('解析 Google Redirect 登入資訊失敗:', err))
+          .finally(() => {
+            window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+          });
+      }
+    }
+  }, []);
+
+  // 從 IndexedDB 離線快取非同步載入專案 (同時具備防呆修復)
   useEffect(() => {
     loadLocalProject('proj_default').then((savedProj) => {
       if (savedProj && Array.isArray(savedProj.units) && savedProj.units.length > 0) {
-        setUnits(recalculateSchemeOffsets(savedProj.units, layoutMode));
-        if (savedProj.units[0]?.id) {
-          setActiveUnitId(savedProj.units[0].id);
+        const sanitized = savedProj.units.map((u) => sanitizeSpaceData(u));
+        setUnits(recalculateSchemeOffsets(sanitized, layoutMode));
+        if (sanitized[0]?.id) {
+          setActiveUnitId(sanitized[0].id);
         }
       }
     }).catch((err) => {
@@ -1004,20 +1103,53 @@ export default function App() {
         const rawContent = event.target.result;
         const parsed = JSON.parse(rawContent);
 
+        // 前置合法性防呆檢查：若檔案完全不包含任何室內設計結構特徵，拒絕匯入以防白屏破壞
+        const isLikelyFloorplan = (obj) => {
+          if (!obj || typeof obj !== 'object') return false;
+          if (Array.isArray(obj)) {
+            return obj.some((it) => it && typeof it === 'object' && (it.walls || it.furniture || (it.length && it.width)));
+          }
+          return Boolean(
+            Array.isArray(obj.units) ||
+            obj.appName === '空間規劃師' ||
+            obj.activeScheme ||
+            (obj.length && obj.width) ||
+            Array.isArray(obj.walls) ||
+            Array.isArray(obj.furniture) ||
+            (obj.data && (obj.data.walls || obj.data.length)) ||
+            (obj.space && (obj.space.walls || obj.space.length))
+          );
+        };
+
+        if (!isLikelyFloorplan(parsed)) {
+          alert('⚠️ 無法識別此 JSON 格式！\n此檔案非「空間規劃師」相容之專案或戶型配置檔案。\n為維護您的設計專案安全，目前配置未做任何修改。');
+          return;
+        }
+
         // 格式 1：直接匯入了 JSON 陣列 (例如從舊版 localStorage 直接 dump 出來的陣列)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const migratedUnits = parsed.map(migrateSpaceData);
+          const validItems = parsed.filter((it) => it && typeof it === 'object');
+          if (validItems.length === 0) {
+            alert('⚠️ 匯入的陣列中未包含有效戶型資料，已取消匯入。');
+            return;
+          }
+          const migratedUnits = validItems.map(migrateSpaceData);
           const spacedUnits = recalculateSchemeOffsets(migratedUnits, layoutMode);
           setUnits(spacedUnits);
           setActiveUnitId(spacedUnits[0]?.id || '');
           setSelectedItemId(null);
-          alert(`✅ 成功匯入舊版多方案配置！已相容還原 ${spacedUnits.length} 套設計方案。`);
+          alert(`✅ 成功匯入多方案配置！已相容還原 ${spacedUnits.length} 套設計方案。`);
           return;
         }
 
         // 格式 2：多方案完整封裝包 (包含 units 陣列)
         if (parsed.units && Array.isArray(parsed.units) && parsed.units.length > 0) {
-          const migratedUnits = parsed.units.map(migrateSpaceData);
+          const validUnits = parsed.units.filter((it) => it && typeof it === 'object');
+          if (validUnits.length === 0) {
+            alert('⚠️ 專案封裝包中未包含有效戶型，已取消匯入。');
+            return;
+          }
+          const migratedUnits = validUnits.map(migrateSpaceData);
           setUnits(migratedUnits);
           if (parsed.activeUnitId && migratedUnits.some((u) => u.id === parsed.activeUnitId)) {
             setActiveUnitId(parsed.activeUnitId);
@@ -1030,8 +1162,8 @@ export default function App() {
         }
 
         // 格式 3：舊版單一空間物件 (tunnel 歷史匯出檔、或帶有 data/space 包裝)
-        let singleSpace = parsed.data || parsed.space || (parsed.length && parsed.width ? parsed : null);
-        if (singleSpace && singleSpace.length && singleSpace.width) {
+        let singleSpace = parsed.data || parsed.space || (parsed.length || parsed.walls || parsed.furniture ? parsed : null);
+        if (singleSpace && typeof singleSpace === 'object') {
           const migrated = migrateSpaceData(singleSpace);
           const hasOnlyOneOpenRoom = !migrated.rooms || migrated.rooms.length <= 1;
           const hasInteriorWalls = (migrated.walls || []).filter((w) => w[4] === 'n').length >= 2;
@@ -1051,7 +1183,7 @@ export default function App() {
             return [{ ...migrated, id: `unit_${Date.now()}`, offset: [0, 0] }, ...prev];
           });
           setSelectedItemId(null);
-          alert(`✅ 舊版空間配置【${migrated.name || '歷史格局'}】匯入成功！已相容還原所有隔間牆、門窗與家具。`);
+          alert(`✅ 空間配置【${migrated.name || '歷史格局'}】匯入成功！已相容還原所有隔間牆、門窗與家具。`);
           return;
         }
 
