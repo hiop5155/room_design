@@ -55,7 +55,7 @@ export default function SidebarRight({
 
         {selectedItem ? (
           selectedItem.isRoom ? (
-            /* ★ 房間區域專屬屬性檢視面板 */
+            /* 房間區域專屬屬性檢視面板 */
             <div style={styles.inspectorBody}>
               <div
                 style={{
@@ -179,7 +179,7 @@ export default function SidebarRight({
               </div>
             </div>
           ) : selectedItem.isDoor ? (
-            /* ★ 門扇專屬屬性檢視面板 */
+            /* 門扇專屬屬性檢視面板 */
             <div style={styles.inspectorBody}>
               <div style={styles.heroImgContainer}>
                 <img
@@ -251,194 +251,194 @@ export default function SidebarRight({
                   />
                 </div>
 
-                  {/* 門扇形式切換 */}
+                {/* 門扇形式切換 */}
+                <div style={styles.field}>
+                  <label style={styles.label}>門扇形式</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.actionBtn,
+                        backgroundColor: !selectedItem.isSliding ? '#ea580c' : '#ffffff',
+                        color: !selectedItem.isSliding ? '#ffffff' : '#1c1917',
+                        borderColor: !selectedItem.isSliding ? '#c2410c' : '#d6d3d1',
+                        fontWeight: !selectedItem.isSliding ? 700 : 500,
+                      }}
+                      onClick={() => onUpdateSelectedItem({ isSliding: false })}
+                    >
+                      🚪 單開木門
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.actionBtn,
+                        backgroundColor: selectedItem.isSliding ? '#ea580c' : '#ffffff',
+                        color: selectedItem.isSliding ? '#ffffff' : '#1c1917',
+                        borderColor: selectedItem.isSliding ? '#c2410c' : '#d6d3d1',
+                        fontWeight: selectedItem.isSliding ? 700 : 500,
+                      }}
+                      onClick={() => onUpdateSelectedItem({ isSliding: true })}
+                    >
+                      ↔ 滑動推拉門
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2D 坐標設定 */}
+                <div style={styles.field}>
+                  <label style={styles.label}>2D 平面坐標 (mm)</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '2px' }}>↔ X 坐標</div>
+                      <input
+                        type="number"
+                        step="50"
+                        value={Math.round(selectedItem.posX !== undefined ? selectedItem.posX : selectedItem.x0)}
+                        onChange={(e) => onUpdateSelectedItem({ posX: Number(e.target.value) })}
+                        style={styles.input}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '2px' }}>↕ Y 坐標</div>
+                      <input
+                        type="number"
+                        step="50"
+                        value={Math.round(selectedItem.posY !== undefined ? selectedItem.posY : selectedItem.y0)}
+                        onChange={(e) => onUpdateSelectedItem({ posY: Number(e.target.value) })}
+                        style={styles.input}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 門扇方向與 360° 全角度旋轉 */}
+                <div style={styles.field}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <label style={{ ...styles.label, marginBottom: 0 }}>門扇旋轉角度</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="360"
+                        value={Math.round(selectedItem.rot || 0)}
+                        onChange={(e) => onUpdateSelectedItem({ rot: (Number(e.target.value) % 360 + 360) % 360 })}
+                        style={{ ...styles.input, width: '60px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#78716c' }}>°</span>
+                    </div>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    step="1"
+                    value={selectedItem.rot || 0}
+                    onChange={(e) => onUpdateSelectedItem({ rot: Number(e.target.value) })}
+                    style={{ width: '100%', accentColor: '#ea580c', marginBottom: '8px' }}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '6px' }}>
+                    <button
+                      type="button"
+                      style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
+                      onClick={() => onUpdateSelectedItem({ rot: 0, orientation: 'horizontal' })}
+                    >
+                      0° 水平
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
+                      onClick={() => onUpdateSelectedItem({ rot: 90, orientation: 'vertical' })}
+                    >
+                      90° 垂直
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
+                      onClick={() => onUpdateSelectedItem({ rot: ((selectedItem.rot || 0) + 345) % 360 })}
+                    >
+                      －15°
+                    </button>
+                    <button
+                      type="button"
+                      style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
+                      onClick={() => onUpdateSelectedItem({ rot: ((selectedItem.rot || 0) + 15) % 360 })}
+                    >
+                      ＋15°
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    style={{ ...styles.actionBtn, width: '100%', padding: '4px', fontSize: '11px', color: '#ea580c', borderColor: '#fdba74' }}
+                    onClick={() => onUpdateSelectedItem({ rot: 53.6 })}
+                  >
+                    📐 快速貼齊主臥 53.6° 斜隔間牆
+                  </button>
+                </div>
+
+                {/* 開啟翻轉 (鉸鏈與內外開) */}
+                {!selectedItem.isSliding && (
                   <div style={styles.field}>
-                    <label style={styles.label}>門扇形式</label>
+                    <label style={styles.label}>開啟軌跡與門軸位置</label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                       <button
                         type="button"
-                        style={{
-                          ...styles.actionBtn,
-                          backgroundColor: !selectedItem.isSliding ? '#ea580c' : '#ffffff',
-                          color: !selectedItem.isSliding ? '#ffffff' : '#1c1917',
-                          borderColor: !selectedItem.isSliding ? '#c2410c' : '#d6d3d1',
-                          fontWeight: !selectedItem.isSliding ? 700 : 500,
-                        }}
-                        onClick={() => onUpdateSelectedItem({ isSliding: false })}
+                        style={styles.actionBtn}
+                        onClick={() => onUpdateSelectedItem({ flipH: !selectedItem.flipH })}
                       >
-                        🚪 單開木門
+                        🔄 門軸換邊 ({selectedItem.flipH ? '右/下軸' : '左/上軸'})
                       </button>
                       <button
+                        type="button"
+                        style={styles.actionBtn}
+                        onClick={() => onUpdateSelectedItem({ flipV: !selectedItem.flipV })}
+                      >
+                        🔄 開啟換向 ({selectedItem.flipV ? '開向南/東' : '開向北/西'})
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 門寬 / 開度 */}
+                <div style={styles.field}>
+                  <label style={styles.label}>門洞寬度 (當前: {selectedItem.length || 900} mm)</label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                    {[650, 750, 800, 900, 1000].map((len) => (
+                      <button
+                        key={len}
                         type="button"
                         style={{
                           ...styles.actionBtn,
-                          backgroundColor: selectedItem.isSliding ? '#ea580c' : '#ffffff',
-                          color: selectedItem.isSliding ? '#ffffff' : '#1c1917',
-                          borderColor: selectedItem.isSliding ? '#c2410c' : '#d6d3d1',
-                          fontWeight: selectedItem.isSliding ? 700 : 500,
+                          flex: 1,
+                          fontSize: '11px',
+                          padding: '4px 2px',
+                          backgroundColor: selectedItem.length === len ? '#ea580c' : '#ffffff',
+                          color: selectedItem.length === len ? '#ffffff' : '#1c1917',
                         }}
-                        onClick={() => onUpdateSelectedItem({ isSliding: true })}
+                        onClick={() => onUpdateSelectedItem({ length: len })}
                       >
-                        ↔ 滑動推拉門
+                        {len}
                       </button>
-                    </div>
+                    ))}
                   </div>
+                </div>
 
-                  {/* 2D 坐標設定 */}
-                  <div style={styles.field}>
-                    <label style={styles.label}>2D 平面坐標 (mm)</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '2px' }}>↔ X 坐標</div>
-                        <input
-                          type="number"
-                          step="50"
-                          value={Math.round(selectedItem.posX !== undefined ? selectedItem.posX : selectedItem.x0)}
-                          onChange={(e) => onUpdateSelectedItem({ posX: Number(e.target.value) })}
-                          style={styles.input}
-                        />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '11px', color: '#78716c', marginBottom: '2px' }}>↕ Y 坐標</div>
-                        <input
-                          type="number"
-                          step="50"
-                          value={Math.round(selectedItem.posY !== undefined ? selectedItem.posY : selectedItem.y0)}
-                          onChange={(e) => onUpdateSelectedItem({ posY: Number(e.target.value) })}
-                          style={styles.input}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 門扇方向與 360° 全角度旋轉 */}
-                  <div style={styles.field}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <label style={{ ...styles.label, marginBottom: 0 }}>門扇旋轉角度</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="360"
-                          value={Math.round(selectedItem.rot || 0)}
-                          onChange={(e) => onUpdateSelectedItem({ rot: (Number(e.target.value) % 360 + 360) % 360 })}
-                          style={{ ...styles.input, width: '60px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }}
-                        />
-                        <span style={{ fontSize: '12px', color: '#78716c' }}>°</span>
-                      </div>
-                    </div>
-                    
-                    <input
-                      type="range"
-                      min="0"
-                      max="360"
-                      step="1"
-                      value={selectedItem.rot || 0}
-                      onChange={(e) => onUpdateSelectedItem({ rot: Number(e.target.value) })}
-                      style={{ width: '100%', accentColor: '#ea580c', marginBottom: '8px' }}
-                    />
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', marginBottom: '6px' }}>
-                      <button
-                        type="button"
-                        style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
-                        onClick={() => onUpdateSelectedItem({ rot: 0, orientation: 'horizontal' })}
-                      >
-                        0° 水平
-                      </button>
-                      <button
-                        type="button"
-                        style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
-                        onClick={() => onUpdateSelectedItem({ rot: 90, orientation: 'vertical' })}
-                      >
-                        90° 垂直
-                      </button>
-                      <button
-                        type="button"
-                        style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
-                        onClick={() => onUpdateSelectedItem({ rot: ((selectedItem.rot || 0) + 345) % 360 })}
-                      >
-                        －15°
-                      </button>
-                      <button
-                        type="button"
-                        style={{ ...styles.actionBtn, padding: '4px 2px', fontSize: '11px' }}
-                        onClick={() => onUpdateSelectedItem({ rot: ((selectedItem.rot || 0) + 15) % 360 })}
-                      >
-                        ＋15°
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      style={{ ...styles.actionBtn, width: '100%', padding: '4px', fontSize: '11px', color: '#ea580c', borderColor: '#fdba74' }}
-                      onClick={() => onUpdateSelectedItem({ rot: 53.6 })}
-                    >
-                      📐 快速貼齊主臥 53.6° 斜隔間牆
-                    </button>
-                  </div>
-
-                  {/* 開啟翻轉 (鉸鏈與內外開) */}
-                  {!selectedItem.isSliding && (
-                    <div style={styles.field}>
-                      <label style={styles.label}>開啟軌跡與門軸位置</label>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        <button
-                          type="button"
-                          style={styles.actionBtn}
-                          onClick={() => onUpdateSelectedItem({ flipH: !selectedItem.flipH })}
-                        >
-                          🔄 門軸換邊 ({selectedItem.flipH ? '右/下軸' : '左/上軸'})
-                        </button>
-                        <button
-                          type="button"
-                          style={styles.actionBtn}
-                          onClick={() => onUpdateSelectedItem({ flipV: !selectedItem.flipV })}
-                        >
-                          🔄 開啟換向 ({selectedItem.flipV ? '開向南/東' : '開向北/西'})
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 門寬 / 開度 */}
-                  <div style={styles.field}>
-                    <label style={styles.label}>門洞寬度 (當前: {selectedItem.length || 900} mm)</label>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                      {[650, 750, 800, 900, 1000].map((len) => (
-                        <button
-                          key={len}
-                          type="button"
-                          style={{
-                            ...styles.actionBtn,
-                            flex: 1,
-                            fontSize: '11px',
-                            padding: '4px 2px',
-                            backgroundColor: selectedItem.length === len ? '#ea580c' : '#ffffff',
-                            color: selectedItem.length === len ? '#ffffff' : '#1c1917',
-                          }}
-                          onClick={() => onUpdateSelectedItem({ length: len })}
-                        >
-                          {len}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 操作按鈕 */}
-                  <div style={{ ...styles.field, marginTop: '16px' }}>
-                    <button
-                      type="button"
-                      style={{ ...styles.actionBtn, width: '100%', color: '#dc2626', borderColor: '#fca5a5' }}
-                      onClick={onDeleteSelectedItem}
-                    >
-                      {selectedItem.isEntryDoor ? '🗑 拆除主要入戶大門' : '🗑 刪除此門扇'}
-                    </button>
-                  </div>
-                </>
+                {/* 操作按鈕 */}
+                <div style={{ ...styles.field, marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    style={{ ...styles.actionBtn, width: '100%', color: '#dc2626', borderColor: '#fca5a5' }}
+                    onClick={onDeleteSelectedItem}
+                  >
+                    {selectedItem.isEntryDoor ? '🗑 拆除主要入戶大門' : '🗑 刪除此門扇'}
+                  </button>
+                </div>
+              </>
             </div>
           ) : selectedItem.isWall ? (
-            /* ★ 隔間牆專屬屬性檢視面板 */
+            /* 隔間牆專屬屬性檢視面板 */
             <div style={styles.inspectorBody}>
               <div style={styles.heroImgContainer}>
                 <img
@@ -761,7 +761,7 @@ export default function SidebarRight({
             </div>
           ) : (
             <div style={styles.inspectorBody}>
-              {/* ★ 真實商品寫實視覺照片 */}
+              {/* 真實商品寫實視覺照片 */}
               <div style={styles.heroImgContainer}>
                 <img
                   src={getProductImage(selectedItem)}

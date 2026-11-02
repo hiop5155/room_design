@@ -166,7 +166,7 @@ export default function MobileCatalogSheet({
                 style={styles.card}
                 onClick={() => handleSelect(item)}
               >
-                {/* ★ 真實商品寫實視覺縮圖 */}
+                {/* 真實商品寫實視覺縮圖 */}
                 <div style={styles.thumbnailContainer}>
                   <img
                     src={imgSrc}

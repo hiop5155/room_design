@@ -161,7 +161,7 @@ export default function App() {
   });
   const [walkTarget, setWalkTarget] = useState(null);
 
-  // 使用者 Google 帳號與 Cloudflare D1 同步狀態
+  // 使用者 Google 帳號同步狀態
   const [user, setUser] = useState(() => getStoredUser());
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
 
@@ -177,6 +177,18 @@ export default function App() {
     }).catch((err) => {
       console.warn('讀取 IndexedDB 失敗:', err);
     });
+  }, []);
+
+  // 自動清理網址列 (確保 URL 乾淨)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.search || window.location.hash)) {
+      try {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState(null, '', cleanUrl);
+      } catch (e) {
+        console.warn('清理網址列失敗:', e);
+      }
+    }
   }, []);
 
   // 當多方案狀態更新時，自動持久化至 localStorage 與 IndexedDB
@@ -228,14 +240,14 @@ export default function App() {
     );
   };
 
-  // ★ 拖曳移動戶型位置 (更新 World Offset)
+  // 拖曳移動戶型位置 (更新 World Offset)
   const handleUpdateUnitOffset = (targetId, newOffset) => {
     setUnits((prev) =>
       prev.map((u) => (u.id === targetId ? { ...u, offset: newOffset } : u))
     );
   };
 
-  // ★ 複製當前戶型為新方案 (放置在右側並自動分開，防重疊)
+  // 複製當前戶型為新方案 (放置在右側並自動分開，防重疊)
   const handleCloneUnit = (targetId) => {
     const target = units.find((u) => u.id === targetId) || space;
     const cloned = cloneUnitScheme(target, `${target.name.replace(/\s*\(複本\)/g, '')} (複本)`);
@@ -255,7 +267,7 @@ export default function App() {
     setActiveUnitId(cloned.id);
   };
 
-  // ★ 重新命名方案名稱 (支援自訂戶型名稱，在匯出與 3D 漫遊中連動顯示)
+  // 重新命名方案名稱 (支援自訂戶型名稱，在匯出與 3D 漫遊中連動顯示)
   const handleRenameUnit = (targetId, newName) => {
     if (!newName || !newName.trim()) return;
     const trimmed = newName.trim();
@@ -264,7 +276,7 @@ export default function App() {
     );
   };
 
-  // ★ 將當前戶型儲存為預設戶型 (覆蓋/存入自訂預設庫)
+  // 將當前戶型儲存為預設戶型 (覆蓋/存入自訂預設庫)
   const handleSetAsDefaultScheme = (targetId) => {
     const target = units.find((u) => u.id === targetId) || space;
     try {
@@ -276,7 +288,7 @@ export default function App() {
     }
   };
 
-  // ★ 一鍵自動拉開所有方案間距 (防止重疊)
+  // 一鍵自動拉開所有方案間距 (防止重疊)
   const handleAutoSpreadSchemes = () => {
     setUnits((prev) => recalculateSchemeOffsets(prev, layoutMode, 4000));
   };
@@ -539,7 +551,7 @@ export default function App() {
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(resetSpace));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
   };

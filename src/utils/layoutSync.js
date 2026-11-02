@@ -116,7 +116,7 @@ export function synchronizeLayout(
   const wBathE = wallMap['w_bath_east'] || { minX: 1400, maxX: 1500, minY: 17150, maxY: 18550 };
   const wBathLaundryH = wallMap['w_bath_laundry_h'] || { minX: 0, maxX: 2530, minY: 18550, maxY: 18670 };
 
-  // 2. ★ T 字交會牆體自動緊密貼齊
+  // 2. T 字交會牆體自動緊密貼齊
   const syncedWalls = (walls || []).map((w, idx) => {
     const id = w[5] || (w[4] === 'n' ? `wall_n_${idx}` : `wall_${w[4]}_${idx}`);
 
@@ -166,7 +166,7 @@ export function synchronizeLayout(
     return w;
   });
 
-  // 3. ★ 動態重算房間地坪幾何、多邊形、顏色與大小 (拉動隔間牆時 100% 即時跟隨更新！)
+  // 3. 動態重算房間地坪幾何、多邊形、顏色與大小 (拉動隔間牆時 100% 即時跟隨更新！)
   const syncedRooms = (prevRooms || []).map((rm) => {
     let newPoly = rm.poly;
     let newAt = rm.at;
@@ -388,7 +388,7 @@ export function synchronizeLayout(
     return rm;
   });
 
-  // 4. ★ 門扇位置即時吸附貼齊相關隔間牆
+  // 4. 門扇位置即時吸附貼齊相關隔間牆
   const syncedDoors = (prevDoors || []).map((d) => {
     // 若是客房門 d_living，且客房南隔間牆被拖動時，門洞自動貼齊客房南牆！
     if (d.id === 'd_living') {

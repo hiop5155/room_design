@@ -90,8 +90,8 @@ export default function SidebarLeft({
           const shortTitle = cat.category.includes('結構與隔間')
             ? '🧱 結構隔間 (實心/灌漿/輕隔間)'
             : cat.category.includes('三分離衛浴')
-            ? '🇯🇵 日本三分離衛浴'
-            : cat.category;
+              ? '🇯🇵 日本三分離衛浴'
+              : cat.category;
 
           return (
             <button
@@ -123,7 +123,7 @@ export default function SidebarLeft({
                 onClick={() => handleItemClick(item)}
                 title={`點擊置入「${item.name}」(${item.w} × ${item.d} mm)`}
               >
-                {/* ★ 真實商品寫實視覺縮圖 (Real View Thumbnail) */}
+                {/* 真實商品寫實視覺縮圖 (Real View Thumbnail) */}
                 <div style={styles.thumbnailContainer}>
                   <img
                     src={imgSrc}

@@ -3,6 +3,29 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { clearAuthSession } from '../services/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+function GoogleIcon({ size = 16, style = {} }) {
+  return (
+    <svg style={{ width: size, height: size, flexShrink: 0, ...style }} viewBox="0 0 24 24">
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.9c2.28-2.1 3.645-5.2 3.645-9.15z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.9-3.05c-1.08.72-2.45 1.16-4.03 1.16-3.1 0-5.74-2.09-6.68-4.91H1.21v3.15C3.25 21.41 7.34 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.32 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.56H1.21C.44 8.09 0 9.99 0 12s.44 3.91 1.21 5.44l4.11-3.15z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.59 1.21 6.56l4.11 3.15c.94-2.82 3.58-4.96 6.68-4.96z"
+      />
+    </svg>
+  );
+}
+
 export default function Header({
   space,
   viewMode,
@@ -35,6 +58,12 @@ export default function Header({
   // Google 登入觸發
   const handleGoogleAuth = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      // 確保無論 Google OAuth 是否附加了回呼 query/hash，立即還原純淨乾淨 URL
+      if (typeof window !== 'undefined' && (window.location.search || window.location.hash)) {
+        try {
+          window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+        } catch { }
+      }
       if (onLoginSuccess) {
         try {
           const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -54,6 +83,11 @@ export default function Header({
     },
     onError: (error) => {
       console.warn('Google 登入失敗或已取消:', error);
+      if (typeof window !== 'undefined' && (window.location.search || window.location.hash)) {
+        try {
+          window.history.replaceState(null, '', window.location.origin + window.location.pathname);
+        } catch { }
+      }
     },
   });
 
@@ -69,7 +103,7 @@ export default function Header({
           <span style={styles.mobileBadge}>{areaPing} 坪</span>
         </div>
 
-        {/* Right: Quick Blueprint, Rotate, Lock & More Menu */}
+        {/* Right: Quick Blueprint, Rotate, Lock, Google Login & More Menu */}
         <div style={styles.mobileRightGroup}>
           {onToggleLock && (
             <button
@@ -87,18 +121,33 @@ export default function Header({
             </button>
           )}
 
-          {onRotatePlan && (
+          {/* Google 登入小按鈕 / 使用者頭像 (手機 Header 頂層即時可見) */}
+          {user ? (
             <button
-              onClick={onRotatePlan}
-              style={{
-                ...styles.mobilePresetBtn,
-                backgroundColor: '#f1f5f9',
-                color: '#334155',
-                borderColor: '#cbd5e1',
-              }}
-              title={`旋轉 2D 平面圖 (當前 ${planRotation}°)`}
+              onClick={() => setMobileMenuOpen(true)}
+              style={styles.mobileHeaderAvatarBtn}
+              title={`已登入: ${user.name || user.email} (點擊查看雲端狀態)`}
             >
-              🔄 {planRotation % 180 === 0 ? '直向' : '橫向'}
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} style={styles.mobileHeaderAvatarImg} />
+              ) : (
+                <div style={styles.mobileHeaderAvatarFallback}>{user.name ? user.name[0] : 'U'}</div>
+              )}
+              <span
+                style={{
+                  ...styles.mobileSyncDot,
+                  backgroundColor: syncStatus === 'synced' ? '#22c55e' : syncStatus === 'syncing' ? '#eab308' : '#94a3b8',
+                }}
+              />
+            </button>
+          ) : (
+            <button
+              onClick={() => handleGoogleAuth()}
+              style={styles.mobileHeaderLoginBtn}
+              title="Google 登入 (雲端同步備份)"
+            >
+              <GoogleIcon size={14} />
+              <span>登入</span>
             </button>
           )}
 
@@ -124,6 +173,61 @@ export default function Header({
               style={styles.dropdownMenu}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Google 帳號同步卡片 */}
+              {user ? (
+                <div style={styles.mobileAccountCard}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name} style={styles.mobileCardAvatar} />
+                    ) : (
+                      <div style={styles.mobileCardAvatarFallback}>{user.name ? user.name[0] : 'U'}</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {user.name || user.email}
+                      </div>
+                      <div style={{ fontSize: '11px', color: syncStatus === 'synced' ? '#15803d' : '#ca8a04', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: syncStatus === 'synced' ? '#22c55e' : '#eab308' }} />
+                        {syncStatus === 'syncing' ? '雲端同步中...' : syncStatus === 'synced' ? '已同步' : '本機暫存'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        clearAuthSession();
+                        if (onLogout) onLogout();
+                        setMobileMenuOpen(false);
+                      }}
+                      style={styles.mobileLogoutBtn}
+                      title="登出帳號"
+                    >
+                      登出
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={styles.mobileAccountCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#44403c' }}>雲端同步與備份</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />
+                      尚未登入
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleGoogleAuth();
+                      setMobileMenuOpen(false);
+                    }}
+                    style={styles.mobileGoogleFullBtn}
+                  >
+                    <GoogleIcon size={16} />
+                    <span>透過 Google 登入 (雲端自動備份)</span>
+                  </button>
+                </div>
+              )}
+
+              <div style={styles.menuDivider} />
+
               <div style={styles.menuHeader}>圖層與工程顯示</div>
               <div style={styles.menuRow}>
                 <button
@@ -438,9 +542,9 @@ export default function Header({
 
         <div style={styles.divider} />
 
-        {/* 右側最末：Google 帳號狀態與 Cloudflare 雲端同步狀態 */}
+        {/* 右側最末：Google雲端同步狀態 */}
         <div style={styles.authGroup}>
-          <div style={styles.syncBadge} title="Cloudflare D1 雲端同步狀態">
+          <div style={styles.syncBadge} title="Google 雲端同步狀態">
             <span
               style={{
                 ...styles.syncDot,
@@ -562,6 +666,109 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
+  },
+  mobileHeaderAvatarBtn: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+  },
+  mobileHeaderAvatarImg: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    border: '1.5px solid #ea580c',
+    objectFit: 'cover',
+  },
+  mobileHeaderAvatarFallback: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    backgroundColor: '#ea580c',
+    color: '#ffffff',
+    fontSize: '12px',
+    fontWeight: 800,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileSyncDot: {
+    position: 'absolute',
+    bottom: '-1px',
+    right: '-1px',
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    border: '1.5px solid #ffffff',
+  },
+  mobileHeaderLoginBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 8px',
+    borderRadius: '6px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #d6d3d1',
+    color: '#374151',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+  },
+  mobileAccountCard: {
+    backgroundColor: '#fbfaf8',
+    borderRadius: '10px',
+    padding: '10px',
+    border: '1px solid #f0ede6',
+  },
+  mobileCardAvatar: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '50%',
+    border: '1px solid #e7e5e4',
+    objectFit: 'cover',
+  },
+  mobileCardAvatarFallback: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '50%',
+    backgroundColor: '#ea580c',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 800,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mobileLogoutBtn: {
+    padding: '4px 8px',
+    fontSize: '11px',
+    borderRadius: '6px',
+    border: '1px solid #fecaca',
+    backgroundColor: '#ffffff',
+    color: '#dc2626',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  mobileGoogleFullBtn: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '8px 10px',
+    borderRadius: '8px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #cbd5e1',
+    color: '#1e293b',
+    fontSize: '12px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
   },
   mobileMenuBtnActive: {
     backgroundColor: '#1c1917',
