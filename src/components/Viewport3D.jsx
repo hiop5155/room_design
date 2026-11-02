@@ -2200,7 +2200,7 @@ export default function Viewport3D({
       <div style={styles.helpPill}>
         {viewMode === 'walk' ? (
           <span>
-            🚶‍♂️ <strong>第一人稱漫遊中</strong>：
+            🚶‍♂️ <strong>漫遊中【{(walkingUnit || space)?.name}】</strong>：
             {isMobile
               ? ' 左下搖桿行走 · 右側滑動轉向'
               : ' [W/A/S/D] 行走 · [Shift] 奔跑 · 按住滑鼠拖曳 360° 環顧 · 滾輪前後'}

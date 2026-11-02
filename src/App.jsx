@@ -12,7 +12,7 @@ import MobileQuickToolbar from './components/MobileQuickToolbar';
 import SchemeManagerBar from './components/SchemeManagerBar';
 import WalkRoomPickerModal from './components/WalkRoomPickerModal';
 import { useIsMobile } from './hooks/useIsMobile';
-import { BLUEPRINT_PROJECT } from './constants';
+import { BLUEPRINT_PROJECT, SCHEME_B_OPEN, SCHEME_C_SUITES } from './constants';
 import { synchronizeLayout, calculateDoorGeometry, calculatePolygonAreaM2 } from './utils/layoutSync';
 import { detectRoomsFromWalls, createCustomRoom } from './utils/roomDetector';
 import { recalculateSchemeOffsets, cloneUnitScheme } from './utils/schemeLayout';
@@ -27,23 +27,32 @@ import {
 
 import newDesignSpace from './constants/newDesignSpace.json';
 
-const STORAGE_KEY = 'floorplan_user_space_v12';
+const STORAGE_KEY = 'floorplan_user_space_v14';
 
-// 初始多方案預設範本 (方案 A 原案三分離 + 方案 B 全新大客餐廚)
-const INITIAL_SCHEMES = recalculateSchemeOffsets([
+// 預設三個獨立戶型 (方案 A 三分離標準案 + 方案 B 全開放大客餐廚 + 方案 C 雙獨立大套房)
+const INITIAL_SCHEMES = [
   {
     ...BLUEPRINT_PROJECT,
-    id: 'unit_blueprint',
-    name: '原案三分離 (標準版)',
+    id: 'unit_scheme_a',
+    name: '方案 A · 三分離衛浴標準案 (19.8m × 5.3m)',
     visible: true,
+    offset: [0, 0],
   },
   {
-    ...newDesignSpace,
-    id: 'unit_new_design',
-    name: '新版大客餐廚 (新案)',
+    ...SCHEME_B_OPEN,
+    id: 'unit_scheme_b',
+    name: '方案 B · 全開放大客餐廚 (19.8m × 5.3m)',
     visible: true,
+    offset: [7500, 0],
   },
-], 'horizontal');
+  {
+    ...SCHEME_C_SUITES,
+    id: 'unit_scheme_c',
+    name: '方案 C · 雙獨立大套房 (19.8m × 5.3m)',
+    visible: true,
+    offset: [15000, 0],
+  },
+];
 
 // 自動檢查並升級舊版格式資料
 function migrateSpaceData(rawSpace) {
@@ -219,12 +228,57 @@ export default function App() {
     );
   };
 
+  // ★ 拖曳移動戶型位置 (更新 World Offset)
+  const handleUpdateUnitOffset = (targetId, newOffset) => {
+    setUnits((prev) =>
+      prev.map((u) => (u.id === targetId ? { ...u, offset: newOffset } : u))
+    );
+  };
+
+  // ★ 複製當前戶型為新方案 (放置在右側並自動分開，防重疊)
   const handleCloneUnit = (targetId) => {
     const target = units.find((u) => u.id === targetId) || space;
-    const cloned = cloneUnitScheme(target, `${target.name} (複本)`);
-    const nextUnits = recalculateSchemeOffsets([...units, cloned], layoutMode);
+    const cloned = cloneUnitScheme(target, `${target.name.replace(/\s*\(複本\)/g, '')} (複本)`);
+
+    // 計算當前所有方案在 X 軸的最右側邊界
+    let maxEndX = 0;
+    units.forEach((u) => {
+      const ox = u.offset ? u.offset[0] : 0;
+      const w = Math.max(u.length || 5300, u.width || 19830);
+      maxEndX = Math.max(maxEndX, ox + w);
+    });
+
+    cloned.offset = [maxEndX + 3500, target.offset ? target.offset[1] : 0];
+
+    const nextUnits = [...units, cloned];
     setUnits(nextUnits);
     setActiveUnitId(cloned.id);
+  };
+
+  // ★ 重新命名方案名稱 (支援自訂戶型名稱，在匯出與 3D 漫遊中連動顯示)
+  const handleRenameUnit = (targetId, newName) => {
+    if (!newName || !newName.trim()) return;
+    const trimmed = newName.trim();
+    setUnits((prev) =>
+      prev.map((u) => (u.id === targetId ? { ...u, name: trimmed } : u))
+    );
+  };
+
+  // ★ 將當前戶型儲存為預設戶型 (覆蓋/存入自訂預設庫)
+  const handleSetAsDefaultScheme = (targetId) => {
+    const target = units.find((u) => u.id === targetId) || space;
+    try {
+      localStorage.setItem('floorplan_user_default_scheme', JSON.stringify(target));
+      alert(`💾 已成功將「${target.name}」儲存為預設戶型！日後載入預設規格或新建時將以此配置為準。`);
+    } catch (e) {
+      console.warn('儲存預設戶型失敗:', e);
+      alert('⚠️ 儲存預設戶型失敗，請確認瀏覽器儲存空間。');
+    }
+  };
+
+  // ★ 一鍵自動拉開所有方案間距 (防止重疊)
+  const handleAutoSpreadSchemes = () => {
+    setUnits((prev) => recalculateSchemeOffsets(prev, layoutMode, 4000));
   };
 
   const handleDeleteUnit = (targetId) => {
@@ -361,8 +415,9 @@ export default function App() {
       ...selectedDoor,
       id: selectedDoor.id,
       isDoor: true,
-      name: selectedDoor.name || (selectedDoor.isSliding ? '滑動推拉門' : '單開室內木門'),
-      isLocked: Boolean(selectedDoor.entry || selectedDoor.isLocked),
+      name: selectedDoor.name || (selectedDoor.entry ? '入戶防爆大門' : selectedDoor.isSliding ? '滑動推拉門' : '單開室內木門'),
+      isEntryDoor: Boolean(selectedDoor.entry),
+      isLocked: Boolean(isPlanLocked),
       x0: minX,
       y0: minY,
       x1: maxX,
@@ -431,12 +486,14 @@ export default function App() {
   };
 
   // 📐 新增自訂空間區域
-  const handleAddCustomRoom = (name = '自訂全新區域', mat = 'wood') => {
+  const handleAddCustomRoom = (name, mat) => {
     if (isPlanLocked) {
       alert('🔒 目前格局處於鎖定保護狀態。若要新增自訂區域，請先點擊頂部「🔒 格局已鎖定」按鈕解鎖！');
       return;
     }
-    const newRoom = createCustomRoom(space, name, mat);
+    const safeName = (typeof name === 'string' && name.trim()) ? name.trim() : '自訂全新區域';
+    const safeMat = (typeof mat === 'string' && mat.trim()) ? mat.trim() : 'wood';
+    const newRoom = createCustomRoom(space, safeName, safeMat);
     setSpace((prev) => ({
       ...prev,
       rooms: [...(prev.rooms || []), newRoom],
@@ -614,6 +671,12 @@ export default function App() {
         let isSliding = partial.isSliding !== undefined ? Boolean(partial.isSliding) : Boolean(d.isSliding);
         let flipH = partial.flipH !== undefined ? Boolean(partial.flipH) : Boolean(d.flipH);
         let flipV = partial.flipV !== undefined ? Boolean(partial.flipV) : Boolean(d.flipV);
+        let isEntry = partial.entry !== undefined ? Boolean(partial.entry) : Boolean(d.entry);
+        if (partial.entry === true) {
+          isEntry = (d.id === doorId);
+        } else if (partial.entry === false && d.id === doorId) {
+          isEntry = false;
+        }
 
         const isH = (newRot % 180 === 0);
         const halfBoxW = (isH ? newLen : newThick) / 2;
@@ -635,6 +698,7 @@ export default function App() {
           thickness: newThick,
           rot: newRot,
           orientation: isH ? 'horizontal' : 'vertical',
+          entry: isEntry,
           isSliding,
           flipH,
           flipV,
@@ -856,9 +920,9 @@ export default function App() {
     }
     if (!selectedItemId || !selectedItem) return;
     if (selectedItem.isDoor) {
-      if (selectedItem.isLocked) {
-        alert('🔒 此為主要入戶大門，依消防與建築法規不可拆除！');
-        return;
+      if (selectedItem.isEntryDoor) {
+        const confirmDelete = window.confirm('⚠️ 此門扇被標記為「主要入戶大門」。\n\n確定要拆除嗎？（拆除後可隨時從左側工具箱新增門扇，並在右側屬性面板指定為新大門）');
+        if (!confirmDelete) return;
       }
       handleDeleteDoor(selectedItem.id);
     } else if (selectedItem.isWall) {
@@ -899,41 +963,90 @@ export default function App() {
     setSelectedItemId(duplicated.id);
   };
 
-  // 匯出專案 JSON
+  // 匯出專案 JSON (全案多戶型相容封裝，同時向後相容單戶型讀取)
   const handleExportJson = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(space, null, 2));
+    const exportPayload = {
+      version: 'v14',
+      appName: '空間規劃師',
+      exportTime: new Date().toISOString(),
+      activeUnitId,
+      activeScheme: space,
+      units,
+      // 根層級完整展開當前空間屬性，保證 100% 相容僅讀取 root length/width 的歷史舊版
+      ...space,
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
     const dlAnchorElem = document.createElement('a');
     dlAnchorElem.setAttribute('href', dataStr);
-    dlAnchorElem.setAttribute('download', `${space.name.replace(/\s+/g, '_')}_設計專案.json`);
+    dlAnchorElem.setAttribute('download', `${(space.name || '空間設計').replace(/\s+/g, '_')}_全案設計配置.json`);
     dlAnchorElem.click();
   };
 
-  // 匯入專案 JSON
+  // 匯入專案 JSON (100% 全相容歷史舊版 tunnel 匯出檔案、localStorage dump 陣列與新版多戶型格式)
   const handleImportJson = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parsed = JSON.parse(event.target.result);
-        if (parsed.length && parsed.width) {
-          let loadedSpace = parsed;
-          const hasOnlyOneOpenRoom = !loadedSpace.rooms || loadedSpace.rooms.length <= 1;
-          const hasInteriorWalls = (loadedSpace.walls || []).filter((w) => w[4] === 'n').length >= 2;
+        const rawContent = event.target.result;
+        const parsed = JSON.parse(rawContent);
+
+        // 格式 1：直接匯入了 JSON 陣列 (例如從舊版 localStorage 直接 dump 出來的陣列)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const migratedUnits = parsed.map(migrateSpaceData);
+          const spacedUnits = recalculateSchemeOffsets(migratedUnits, layoutMode);
+          setUnits(spacedUnits);
+          setActiveUnitId(spacedUnits[0]?.id || '');
+          setSelectedItemId(null);
+          alert(`✅ 成功匯入舊版多方案配置！已相容還原 ${spacedUnits.length} 套設計方案。`);
+          return;
+        }
+
+        // 格式 2：多方案完整封裝包 (包含 units 陣列)
+        if (parsed.units && Array.isArray(parsed.units) && parsed.units.length > 0) {
+          const migratedUnits = parsed.units.map(migrateSpaceData);
+          setUnits(migratedUnits);
+          if (parsed.activeUnitId && migratedUnits.some((u) => u.id === parsed.activeUnitId)) {
+            setActiveUnitId(parsed.activeUnitId);
+          } else if (migratedUnits[0]?.id) {
+            setActiveUnitId(migratedUnits[0].id);
+          }
+          setSelectedItemId(null);
+          alert(`✅ 專案全案匯入成功！已完整還原 ${migratedUnits.length} 套戶型方案與自訂配置。`);
+          return;
+        }
+
+        // 格式 3：舊版單一空間物件 (tunnel 歷史匯出檔、或帶有 data/space 包裝)
+        let singleSpace = parsed.data || parsed.space || (parsed.length && parsed.width ? parsed : null);
+        if (singleSpace && singleSpace.length && singleSpace.width) {
+          const migrated = migrateSpaceData(singleSpace);
+          const hasOnlyOneOpenRoom = !migrated.rooms || migrated.rooms.length <= 1;
+          const hasInteriorWalls = (migrated.walls || []).filter((w) => w[4] === 'n').length >= 2;
           if (hasOnlyOneOpenRoom && hasInteriorWalls) {
-            const autoRooms = detectRoomsFromWalls(loadedSpace);
+            const autoRooms = detectRoomsFromWalls(migrated);
             if (autoRooms && autoRooms.length > 0) {
-              loadedSpace.rooms = autoRooms;
+              migrated.rooms = autoRooms;
             }
           }
-          setSpace(loadedSpace);
+
+          // 將匯入的單一格局相容置換至當前活躍方案中，保留其 offset 與 ID
+          setUnits((prev) => {
+            const exists = prev.some((u) => u.id === activeUnitId);
+            if (exists) {
+              return prev.map((u) => (u.id === activeUnitId ? { ...migrated, id: u.id, offset: u.offset } : u));
+            }
+            return [{ ...migrated, id: `unit_${Date.now()}`, offset: [0, 0] }, ...prev];
+          });
           setSelectedItemId(null);
-          alert('專案匯入成功！已同步完成格局空間與面積解析。');
-        } else {
-          alert('JSON 格式錯誤，缺少空間尺寸長寬！');
+          alert(`✅ 舊版空間配置【${migrated.name || '歷史格局'}】匯入成功！已相容還原所有隔間牆、門窗與家具。`);
+          return;
         }
+
+        alert('⚠️ 未能辨識 JSON 內容格式，請確認是否為本系統匯出的專案或空間檔案！');
       } catch (err) {
-        alert('解析 JSON 檔案失敗，請檢查檔案格式！');
+        console.error('匯入 JSON 失敗:', err);
+        alert('⚠️ 解析 JSON 檔案失敗，請檢查檔案格式是否正確！');
       }
     };
     reader.readAsText(file);
@@ -967,7 +1080,7 @@ export default function App() {
 
   return (
     <div style={styles.appRoot}>
-      {/* 頂部導航列 (自動響應手機/桌面) */}
+      {/* 頂部導航列 (自動響應手機/桌面，整合 Google 登入與雲端同步狀態) */}
       <Header
         space={space}
         viewMode={viewMode}
@@ -989,22 +1102,25 @@ export default function App() {
         onToggleLock={handleToggleLock}
         onAutoDetectRooms={handleAutoDetectRooms}
         onAddCustomRoom={handleAddCustomRoom}
+        user={user}
+        onLoginSuccess={handleLoginSuccess}
+        onLogout={handleLogout}
+        syncStatus={syncStatus}
       />
 
-      {/* 方案對比管理與 Cloudflare 同步狀態條 */}
+      {/* 方案對比管理條 (專注於方案切換、複製、重命名、預設與排版) */}
       <SchemeManagerBar
         units={units}
         activeUnitId={activeUnitId}
         onSelectActiveUnit={handleSelectActiveUnit}
         onToggleUnitVisibility={handleToggleUnitVisibility}
         onCloneUnit={handleCloneUnit}
+        onRenameUnit={handleRenameUnit}
+        onSetAsDefaultScheme={handleSetAsDefaultScheme}
+        onAutoSpreadSchemes={handleAutoSpreadSchemes}
         onDeleteUnit={handleDeleteUnit}
         layoutMode={layoutMode}
         onChangeLayoutMode={handleChangeLayoutMode}
-        user={user}
-        onLoginSuccess={handleLoginSuccess}
-        onLogout={handleLogout}
-        syncStatus={syncStatus}
       />
 
       {/* 主工作區 */}
@@ -1033,6 +1149,7 @@ export default function App() {
               units={units}
               activeUnitId={activeUnitId}
               onSelectActiveUnit={handleSelectActiveUnit}
+              onUpdateUnitOffset={handleUpdateUnitOffset}
               selectedItemId={selectedItemId}
               onSelectItem={setSelectedItemId}
               onUpdateFurniture={handleUpdateFurniture}

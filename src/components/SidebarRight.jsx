@@ -192,43 +192,64 @@ export default function SidebarRight({
               <div
                 style={{
                   padding: '10px 12px',
-                  backgroundColor: selectedItem.isLocked ? '#f5f5f4' : '#fff7ed',
+                  backgroundColor: selectedItem.isEntryDoor ? '#f0fdf4' : '#fff7ed',
                   borderRadius: '8px',
-                  border: selectedItem.isLocked ? '1px solid #e7e5e4' : '1px solid #ffedd5',
+                  border: selectedItem.isEntryDoor ? '1px solid #bbf7d0' : '1px solid #ffedd5',
                   marginBottom: '14px',
                 }}
               >
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: selectedItem.isLocked ? '#78716c' : '#ea580c',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  {selectedItem.isLocked ? '🔒 主要入戶大門 (固定核心)' : '🚪 室內自訂門扇構件'}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: selectedItem.isEntryDoor ? '#15803d' : '#ea580c',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {selectedItem.isEntryDoor ? '🟢 主要入戶大門 (本戶出入口)' : '🚪 室內自訂門扇構件'}
+                  </div>
+                  <button
+                    type="button"
+                    style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      border: selectedItem.isEntryDoor ? '1px solid #86efac' : '1px solid #fed7aa',
+                      backgroundColor: '#ffffff',
+                      color: selectedItem.isEntryDoor ? '#15803d' : '#ea580c',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                    onClick={() => onUpdateSelectedItem({
+                      entry: !selectedItem.isEntryDoor,
+                      name: !selectedItem.isEntryDoor ? '入戶防爆大門' : '室內單開木門',
+                    })}
+                  >
+                    {selectedItem.isEntryDoor ? '取消設為大門' : '🌟 設為入戶大門'}
+                  </button>
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1c1917', marginTop: '3px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1c1917', marginTop: '4px' }}>
                   {selectedItem.name}
+                </div>
+                <div style={{ fontSize: '11px', color: '#78716c', marginTop: '2px' }}>
+                  {selectedItem.isEntryDoor
+                    ? '✦ 解鎖格局後可直接在 2D 畫布拖曳、旋轉或透過下方數值微調至任何外牆。'
+                    : '✦ 可在格局中任意滑動、旋轉貼齊隔間牆。'}
                 </div>
               </div>
 
-              {selectedItem.isLocked ? (
-                <div style={{ fontSize: '12px', color: '#78716c', lineHeight: '1.6', padding: '6px 0' }}>
-                  主要入戶大門為建築指定開口與逃生口，不可拆除或位移。
+              <>
+                <div style={styles.field}>
+                  <label style={styles.label}>門扇名稱</label>
+                  <input
+                    type="text"
+                    value={selectedItem.name || ''}
+                    onChange={(e) => onUpdateSelectedItem({ name: e.target.value })}
+                    style={styles.input}
+                  />
                 </div>
-              ) : (
-                <>
-                  <div style={styles.field}>
-                    <label style={styles.label}>門扇名稱</label>
-                    <input
-                      type="text"
-                      value={selectedItem.name || ''}
-                      onChange={(e) => onUpdateSelectedItem({ name: e.target.value })}
-                      style={styles.input}
-                    />
-                  </div>
 
                   {/* 門扇形式切換 */}
                   <div style={styles.field}>
@@ -411,11 +432,10 @@ export default function SidebarRight({
                       style={{ ...styles.actionBtn, width: '100%', color: '#dc2626', borderColor: '#fca5a5' }}
                       onClick={onDeleteSelectedItem}
                     >
-                      🗑 刪除此門扇
+                      {selectedItem.isEntryDoor ? '🗑 拆除主要入戶大門' : '🗑 刪除此門扇'}
                     </button>
                   </div>
                 </>
-              )}
             </div>
           ) : selectedItem.isWall ? (
             /* ★ 隔間牆專屬屬性檢視面板 */

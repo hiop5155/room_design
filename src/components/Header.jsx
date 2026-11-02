@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useGoogleLogin } from '@react-oauth/google';
+import { clearAuthSession } from '../services/api';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 export default function Header({
@@ -22,9 +24,38 @@ export default function Header({
   onToggleLock,
   onAutoDetectRooms,
   onAddCustomRoom,
+  user,
+  onLoginSuccess,
+  onLogout,
+  syncStatus = 'idle',
 }) {
   const isMobile = useIsMobile(768);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Google 登入觸發
+  const handleGoogleAuth = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      if (onLoginSuccess) {
+        try {
+          const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+          });
+          const gInfo = await res.json();
+          onLoginSuccess(tokenResponse.access_token, {
+            id: gInfo.sub,
+            email: gInfo.email,
+            name: gInfo.name,
+            avatar: gInfo.picture,
+          });
+        } catch (err) {
+          console.error('取得 Google 資訊失敗:', err);
+        }
+      }
+    },
+    onError: (error) => {
+      console.warn('Google 登入失敗或已取消:', error);
+    },
+  });
 
   const areaM2 = ((space.length * space.width) / 1000000).toFixed(1);
   const areaPing = (areaM2 * 0.3025).toFixed(1);
@@ -32,12 +63,9 @@ export default function Header({
   if (isMobile) {
     return (
       <header style={styles.mobileHeader}>
-        {/* Left: Brand & Ping Badge */}
+        {/* Left: Space Name & Ping Badge */}
         <div style={styles.mobileBrandGroup}>
-          <div style={styles.logoBadge}>
-            <span style={styles.logoIcon}>◫</span>
-            <span style={styles.logoText}>空間規劃師</span>
-          </div>
+          <span style={styles.mobileSpaceName}>{space.name}</span>
           <span style={styles.mobileBadge}>{areaPing} 坪</span>
         </div>
 
@@ -73,14 +101,6 @@ export default function Header({
               🔄 {planRotation % 180 === 0 ? '直向' : '橫向'}
             </button>
           )}
-
-          <button
-            onClick={onResetToBlueprint}
-            style={styles.mobilePresetBtn}
-            title="載入本案日本三分離預設"
-          >
-            ★ 本案
-          </button>
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -218,15 +238,8 @@ export default function Header({
   // Desktop Header
   return (
     <header style={styles.header}>
-      {/* Left: Brand & Space Info */}
+      {/* Left: Space Info & Actions */}
       <div style={styles.brandGroup}>
-        <div style={styles.logoBadge}>
-          <span style={styles.logoIcon}>◫</span>
-          <span style={styles.logoText}>空間規劃師</span>
-        </div>
-
-        <div style={styles.divider} />
-
         <div style={styles.spaceInfo}>
           <div style={styles.spaceNameRow}>
             <span style={styles.spaceName}>{space.name}</span>
@@ -262,7 +275,7 @@ export default function Header({
 
         {onAddCustomRoom && (
           <button
-            onClick={onAddCustomRoom}
+            onClick={() => onAddCustomRoom('自訂全新分區', 'wood')}
             style={{
               ...styles.presetQuickBtn,
               backgroundColor: '#f8fafc',
@@ -278,9 +291,9 @@ export default function Header({
         <button
           onClick={onResetToBlueprint}
           style={styles.presetQuickBtn}
-          title="載入本案原圖 19.25m 長條複層 (含日本三分離衛浴與原水管配置)"
+          title="重設為預設三分離衛浴格局"
         >
-          <span>★ 本案預設 (三分離衛浴)</span>
+          <span>🔄 重設為標準格局</span>
         </button>
 
         <span
@@ -421,6 +434,71 @@ export default function Header({
               style={{ display: 'none' }}
             />
           </label>
+        </div>
+
+        <div style={styles.divider} />
+
+        {/* 右側最末：Google 帳號狀態與 Cloudflare 雲端同步狀態 */}
+        <div style={styles.authGroup}>
+          <div style={styles.syncBadge} title="Cloudflare D1 雲端同步狀態">
+            <span
+              style={{
+                ...styles.syncDot,
+                backgroundColor:
+                  syncStatus === 'syncing' ? '#eab308' : syncStatus === 'synced' ? '#22c55e' : '#94a3b8',
+              }}
+            />
+            <span style={styles.syncText}>
+              {syncStatus === 'syncing' ? '同步中' : syncStatus === 'synced' ? '已同步' : '離線暫存'}
+            </span>
+          </div>
+
+          {user ? (
+            <div style={styles.userProfile}>
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} style={styles.userAvatar} />
+              ) : (
+                <div style={styles.userAvatarPlaceholder}>{user.name ? user.name[0] : 'U'}</div>
+              )}
+              <span style={styles.userName}>{user.name || user.email}</span>
+              <button
+                style={styles.logoutBtn}
+                onClick={() => {
+                  clearAuthSession();
+                  if (onLogout) onLogout();
+                }}
+                title="登出 Google 帳號"
+              >
+                登出
+              </button>
+            </div>
+          ) : (
+            <button
+              style={styles.googleLoginBtn}
+              onClick={() => handleGoogleAuth()}
+              title="透過 Google 登入以跨裝置儲存與同步方案"
+            >
+              <svg style={styles.googleIcon} viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.9c2.28-2.1 3.645-5.2 3.645-9.15z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.9-3.05c-1.08.72-2.45 1.16-4.03 1.16-3.1 0-5.74-2.09-6.68-4.91H1.21v3.15C3.25 21.41 7.34 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.32 14.29c-.24-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.56H1.21C.44 8.09 0 9.99 0 12s.44 3.91 1.21 5.44l4.11-3.15z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.59 1.21 6.56l4.11 3.15c.94-2.82 3.58-4.96 6.68-4.96z"
+                />
+              </svg>
+              <span>登入</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
@@ -581,42 +659,39 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '0 16px',
+    padding: '0 12px',
     zIndex: 100,
     boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
     userSelect: 'none',
+    overflowX: 'auto',
+    whiteSpace: 'nowrap',
+    gap: '12px',
   },
   brandGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '8px',
+    flexShrink: 0,
   },
-  logoBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
-    borderRadius: '6px',
-    backgroundColor: '#1c1917',
-    color: '#ffffff',
-  },
-  logoIcon: {
-    fontSize: '15px',
-    color: '#fb923c',
-  },
-  logoText: {
+  mobileSpaceName: {
     fontSize: '13px',
     fontWeight: 700,
-    letterSpacing: '0.04em',
+    color: '#1c1917',
+    maxWidth: '180px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   divider: {
     width: '1px',
     height: '24px',
     backgroundColor: '#e6e1d6',
+    flexShrink: 0,
   },
   spaceInfo: {
     display: 'flex',
     alignItems: 'center',
+    flexShrink: 0,
   },
   spaceNameRow: {
     display: 'flex',
@@ -625,7 +700,7 @@ const styles = {
   },
   spaceName: {
     fontSize: '13px',
-    fontWeight: 600,
+    fontWeight: 700,
     color: '#1c1917',
     maxWidth: '220px',
     whiteSpace: 'nowrap',
@@ -639,53 +714,58 @@ const styles = {
     backgroundColor: '#f5f5f4',
     color: '#78716c',
     fontVariantNumeric: 'tabular-nums',
-    fontWeight: 500,
+    fontWeight: 600,
+    flexShrink: 0,
   },
   newSpaceBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '6px 12px',
+    gap: '3px',
+    padding: '4px 8px',
     borderRadius: '6px',
     border: '1px solid #c2410c',
     backgroundColor: '#fffaf5',
     color: '#c2410c',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
+    flexShrink: 0,
   },
   presetQuickBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    padding: '6px 10px',
+    gap: '3px',
+    padding: '4px 7px',
     borderRadius: '6px',
     border: '1px solid #d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#44403c',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
+    flexShrink: 0,
   },
   viewToggleGroup: {
     display: 'flex',
     backgroundColor: '#f5f5f4',
     borderRadius: '8px',
-    padding: '3px',
+    padding: '2px',
     border: '1px solid #e7e5e4',
+    flexShrink: 0,
   },
   toggleBtn: {
-    padding: '6px 16px',
+    padding: '4px 12px',
     border: 'none',
     backgroundColor: 'transparent',
     color: '#78716c',
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: 600,
     borderRadius: '6px',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
+    whiteSpace: 'nowrap',
   },
   toggleBtnActive: {
     backgroundColor: '#ffffff',
@@ -695,13 +775,15 @@ const styles = {
   actionsGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '8px',
+    flexShrink: 0,
   },
   layerToggles: {
     display: 'flex',
     backgroundColor: '#f5f5f4',
     borderRadius: '6px',
     padding: '2px',
+    flexShrink: 0,
   },
   layerBtn: {
     padding: '4px 10px',
@@ -712,6 +794,7 @@ const styles = {
     fontWeight: 600,
     borderRadius: '4px',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   layerBtnActive: {
     backgroundColor: '#ffffff',
@@ -722,6 +805,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
+    flexShrink: 0,
   },
   iconBtn: {
     padding: '5px 10px',
@@ -732,6 +816,7 @@ const styles = {
     backgroundColor: '#ffffff',
     color: '#44403c',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   importLabel: {
     padding: '5px 10px',
@@ -742,5 +827,95 @@ const styles = {
     backgroundColor: '#ffffff',
     color: '#44403c',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  authGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexShrink: 0,
+  },
+  syncBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '11px',
+    color: '#78716c',
+    backgroundColor: '#f5f5f4',
+    padding: '3px 7px',
+    borderRadius: '12px',
+    border: '1px solid #e7e5e4',
+    whiteSpace: 'nowrap',
+  },
+  syncDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+  },
+  syncText: {
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+  googleLoginBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '4px 10px',
+    fontSize: '12px',
+    fontWeight: 600,
+    border: '1px solid #d6d3d1',
+    backgroundColor: '#ffffff',
+    borderRadius: '14px',
+    color: '#374151',
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+    whiteSpace: 'nowrap',
+  },
+  googleIcon: {
+    width: '13px',
+    height: '13px',
+  },
+  userProfile: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    flexShrink: 0,
+  },
+  userAvatar: {
+    width: '22px',
+    height: '22px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+  },
+  userAvatarPlaceholder: {
+    width: '22px',
+    height: '22px',
+    borderRadius: '50%',
+    backgroundColor: '#ea580c',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 700,
+  },
+  userName: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#292524',
+    maxWidth: '90px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  logoutBtn: {
+    padding: '2px 5px',
+    fontSize: '10px',
+    border: '1px solid #e7e5e4',
+    backgroundColor: '#f5f5f4',
+    borderRadius: '4px',
+    color: '#78716c',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
 };

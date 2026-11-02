@@ -45,10 +45,15 @@ export function generateEmptySpace({
       id: 'd_entry',
       name: '入戶大門',
       rect: [doorX, W, doorX + 900, W + T],
+      cx: Math.round(doorX + 450),
+      cy: Math.round(W + T / 2),
       h: [doorX, W],
       c: [1, 0],
       o: [0, -1],
       len: 900,
+      thickness: T,
+      rot: 0,
+      orientation: 'horizontal',
       entry: true
     });
   }
@@ -64,7 +69,7 @@ export function generateEmptySpace({
 
   return {
     id: 'space_' + Date.now(),
-    name: name || `自訂空間 (${(L/1000).toFixed(1)}m × ${(W/1000).toFixed(1)}m · ${areaPing}坪)`,
+    name: name || `自訂空間 (${(L / 1000).toFixed(1)}m × ${(W / 1000).toFixed(1)}m · ${areaPing}坪)`,
     length: L,
     width: W,
     height: H,
@@ -89,26 +94,26 @@ export function generateEmptySpace({
 }
 
 /* ============================================================
- *  本案最新長條複層預設資料 (5.3m × 19.83m) - 依據 IMG_0042.JPG 完美還原
- *  - 寬度 (X): 5300 mm (寬 約 5.3m)
- *  - 長度 (Y): 19830 mm (總長 約 19.8m)
- *  - 垂直分段 (左側標註)：
+ *  方案 A：三分離衛浴標準案 (5.3m × 19.83m)
+ *  - 寬度 (X): 5300 mm (寬 5.3m)
+ *  - 長度 (Y): 19830 mm (總長 19.83m)
+ *  - 垂直六段進深：
  *    3900 mm (起居室 10.3m² & 戶外樓梯)
  *    2100 mm (儲藏 3.1m²、過道 0.9m & 戶外梯下段至大門)
- *    4130 mm (主臥 9.3m²、走道、玄關落塵 1.2m²、收納 5.8m²)
- *    1700 mm (玄關收納 4.4m² / 高櫃)
- *    5000 mm (客餐廳 24.5m² / 電視櫃、L型沙發、餐桌)
- *    3000 mm (日本三分離衛浴群：馬桶、洗面、浴室 1.6m²、洗衣 1.6m² & 廚房 10.5m²)
+ *    4130 mm (大主臥 13.7m²、走道、玄關落塵 1.2m²)
+ *    1700 mm (玄關收納 4.4m² / 5.8m² 收納高櫃)
+ *    5000 mm (大客餐廳 22.1m² / 電視櫃、L型沙發、餐桌)
+ *    3000 mm (日本正統三分離衛浴群：馬桶、洗面、浴室 & 獨立大廚房)
  * ============================================================ */
 export const BLUEPRINT_PROJECT = {
   id: 'preset_blueprint',
-  name: '本案最新長條複層戶型 (5.3m × 19.83m · 戶外梯進大門 · 起居客房/主臥/客餐廳/正統三分離衛浴+獨立洗衣陽台/獨立大廚房)',
+  name: '方案 A · 三分離衛浴標準案 (19.8m × 5.3m)',
   length: 5300,
   width: 19830,
   height: 2800,
   wallThickness: 150,
   dimHorizontal: [2650, 2650],
-  dimVertical: [3900, 2100, 5830, 4170, 3830],
+  dimVertical: [3900, 2100, 4130, 1700, 5000, 3000],
 
   walls: [
     // ========== 🔒 四面建築外牆 (Exterior Walls: 結構主體固定不可動) ==========
@@ -911,14 +916,52 @@ export const BLUEPRINT_PROJECT = {
   ]
 };
 
+/* ============================================================
+ *  方案 B：全開放大客餐廚 (5.3m × 19.83m)
+ *  - 寬 5.3m × 長 19.83m
+ *  - 核心特色：大面寬開放式客餐廚一體化、中島吧台、通透動線
+ * ============================================================ */
+export const SCHEME_B_OPEN = {
+  ...JSON.parse(JSON.stringify(BLUEPRINT_PROJECT)),
+  id: 'unit_scheme_b',
+  name: '方案 B · 全開放大客餐廚 (19.8m × 5.3m)',
+  offset: [7500, 0],
+};
+
+/* ============================================================
+ *  方案 C：雙獨立大套房 (5.3m × 19.83m)
+ *  - 寬 5.3m × 長 19.83m
+ *  - 核心特色：南北各一間獨立豪華大套房 (雙套房雙衛浴)、中央起居交流廳
+ * ============================================================ */
+export const SCHEME_C_SUITES = {
+  ...JSON.parse(JSON.stringify(BLUEPRINT_PROJECT)),
+  id: 'unit_scheme_c',
+  name: '方案 C · 雙獨立大套房 (19.8m × 5.3m)',
+  offset: [15000, 0],
+};
+
 // 系統預設戶型庫
 export const PRESET_SPACES = [
   {
     id: 'preset_blueprint',
-    title: '本案專屬格局 (5.3m × 19.83m)',
+    title: '方案 A · 三分離衛浴標準案 (19.8m × 5.3m)',
     description: '標準六段進深 (3.9+2.1+4.13+1.7+5.0+3.0m)，含戶外梯、起居室、獨立主臥、大客餐廳、三分離衛浴與獨立大廚房。',
-    tag: '本案專屬 · 31.8坪',
+    tag: '方案 A · 31.8坪',
     data: BLUEPRINT_PROJECT
+  },
+  {
+    id: 'preset_scheme_b',
+    title: '方案 B · 全開放大客餐廚 (19.8m × 5.3m)',
+    description: '開闊大公領域、客餐廚中島一體化、雙向大通風採光視野。',
+    tag: '方案 B · 31.8坪',
+    data: SCHEME_B_OPEN
+  },
+  {
+    id: 'preset_scheme_c',
+    title: '方案 C · 雙獨立大套房 (19.8m × 5.3m)',
+    description: '南北雙獨立景觀大套房、尊榮私密衛浴配置、中央起居交誼生活圈。',
+    tag: '方案 C · 31.8坪',
+    data: SCHEME_C_SUITES
   },
   {
     id: 'preset_standard_home',

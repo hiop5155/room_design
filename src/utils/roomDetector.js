@@ -359,6 +359,9 @@ export function detectRoomsFromWalls(space) {
  * 手動新增一個自訂區域 (矩形初始多邊形)
  */
 export function createCustomRoom(space, customName = '自訂全新區域', mat = 'wood') {
+  const safeName = (typeof customName === 'string' && customName.trim()) ? customName.trim() : '自訂全新區域';
+  const safeMat = (typeof mat === 'string' && mat.trim()) ? mat.trim() : 'wood';
+
   const L = space.length;
   const W = space.width;
 
@@ -383,9 +386,9 @@ export function createCustomRoom(space, customName = '自訂全新區域', mat =
 
   return {
     id: `room_user_${Date.now()}`,
-    name: customName,
+    name: safeName,
     poly,
-    mat,
+    mat: safeMat,
     at: [cx, cy],
     areaM2: Number(areaM2.toFixed(1)),
     areaPing: Number((areaM2 * 0.3025).toFixed(1)),

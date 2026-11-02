@@ -2,7 +2,7 @@
  * 多方案並排對比排版引擎 (Multi-Scheme Comparison Layout Engine)
  */
 
-export const DEFAULT_SCHEME_SPACING_MM = 2500; // 預設方案並排間距 2.5m
+export const DEFAULT_SCHEME_SPACING_MM = 3500; // 預設方案並排間距加大至 3.5m，防止長條互卡
 
 /**
  * 重新計算所有方案單元的世界坐標位移 (World Offsets)
@@ -11,15 +11,16 @@ export const DEFAULT_SCHEME_SPACING_MM = 2500; // 預設方案並排間距 2.5m
  * @param {number} spacingMm 方案之間的間隙 (毫米)
  * @returns {Array} 帶有更新後 offset 的 units
  */
-export function recalculateSchemeOffsets(units, layoutMode = 'vertical', spacingMm = DEFAULT_SCHEME_SPACING_MM) {
+export function recalculateSchemeOffsets(units, layoutMode = 'horizontal', spacingMm = DEFAULT_SCHEME_SPACING_MM) {
   if (!units || !Array.isArray(units) || units.length === 0) return [];
 
   let currentX = 0;
   let currentY = 0;
 
   return units.map((unit, idx) => {
-    const uLen = unit.length || 19830;
-    const uWid = unit.width || 5300;
+    // 長條戶型防重疊：跨度取最大軸長或相容旋轉
+    const uLen = Math.max(unit.length || 5300, unit.width || 19830);
+    const uWid = Math.max(unit.length || 5300, unit.width || 19830);
 
     const offset = idx === 0 ? [0, 0] : [currentX, currentY];
 

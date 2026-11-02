@@ -81,7 +81,9 @@ export default function MinimapHUD({
       <div style={styles.header}>
         <div style={styles.headerTitleWrap}>
           <div style={styles.radarDot} />
-          <span style={styles.headerTitle}>{currentRoomName}</span>
+          <span style={styles.headerTitle}>
+            {space.name ? `${space.name} · ${currentRoomName}` : currentRoomName}
+          </span>
         </div>
         <button
           style={styles.collapseBtn}

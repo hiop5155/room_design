@@ -20,6 +20,7 @@ export default function FloorPlan2D({
   units = [],
   activeUnitId,
   onSelectActiveUnit,
+  onUpdateUnitOffset,
   selectedItemId,
   onSelectItem,
   onUpdateFurniture,
@@ -49,13 +50,17 @@ export default function FloorPlan2D({
   const W = space.width;
   const margin = 1200; // 外圍預留標註尺寸邊界
 
+  // 當前活躍方案的位移世界坐標
+  const spaceOx = space.offset ? space.offset[0] : 0;
+  const spaceOy = space.offset ? space.offset[1] : 0;
+
   // 取得其他並排對照的可見方案
   const comparisonUnits = (units || []).filter(
     (u) => u.id !== space.id && u.visible !== false
   );
 
   // 視野中心 (世界座標 mm)，初始居中在空間中央
-  const [viewCenter, setViewCenter] = useState({ x: L / 2, y: W / 2 });
+  const [viewCenter, setViewCenter] = useState({ x: L / 2 + spaceOx, y: W / 2 + spaceOy });
   // 縮放倍率
   const [zoom, setZoom] = useState(isMobile ? 0.75 : 1);
   // 當前聚焦分區
@@ -67,6 +72,7 @@ export default function FloorPlan2D({
   const [dragState, setDragState] = useState(null);
   const [wallDragState, setWallDragState] = useState(null);
   const [doorDragState, setDoorDragState] = useState(null);
+  const [unitDragState, setUnitDragState] = useState(null); // ★ 戶型單元整體拖曳狀態
   const [rotateState, setRotateState] = useState(null); // 360度全角度自由旋轉控制狀態
 
   // 雙指觸控手勢
@@ -273,7 +279,54 @@ export default function FloorPlan2D({
     }
   };
 
+  // ★ 戶型單元開始滑鼠拖曳 (拉動分開各戶型)
+  const handleUnitDragStart = (e, targetUnit) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const worldP = screenToWorld(e.clientX, e.clientY);
+    const ox = targetUnit.offset ? targetUnit.offset[0] : 0;
+    const oy = targetUnit.offset ? targetUnit.offset[1] : 0;
+    setUnitDragState({
+      unitId: targetUnit.id,
+      startMouseX: worldP.x,
+      startMouseY: worldP.y,
+      startOffsetX: ox,
+      startOffsetY: oy,
+    });
+  };
+
+  // ★ 戶型單元開始單指觸控拖曳
+  const handleUnitTouchStart = (e, targetUnit) => {
+    if (e.touches.length === 1) {
+      e.stopPropagation();
+      const touch = e.touches[0];
+      const worldP = screenToWorld(touch.clientX, touch.clientY);
+      const ox = targetUnit.offset ? targetUnit.offset[0] : 0;
+      const oy = targetUnit.offset ? targetUnit.offset[1] : 0;
+      setUnitDragState({
+        unitId: targetUnit.id,
+        startMouseX: worldP.x,
+        startMouseY: worldP.y,
+        startOffsetX: ox,
+        startOffsetY: oy,
+      });
+    }
+  };
+
   const handleMouseMove = (e) => {
+    if (unitDragState) {
+      // ★ 正在自由拖曳整棟戶型單元 (拉開戶型位置，永不重疊)
+      const worldP = screenToWorld(e.clientX, e.clientY);
+      const deltaX = worldP.x - unitDragState.startMouseX;
+      const deltaY = worldP.y - unitDragState.startMouseY;
+      const newOx = Math.round((unitDragState.startOffsetX + deltaX) / 100) * 100; // 100mm 步進吸附
+      const newOy = Math.round((unitDragState.startOffsetY + deltaY) / 100) * 100;
+      if (onUpdateUnitOffset) {
+        onUpdateUnitOffset(unitDragState.unitId, [newOx, newOy]);
+      }
+      return;
+    }
+
     if (rotateState) {
       // 正在 360° 全角度旋轉物件 (家具或門扇)
       const worldP = screenToWorld(e.clientX, e.clientY);
@@ -376,6 +429,7 @@ export default function FloorPlan2D({
     setDragState(null);
     setWallDragState(null);
     setDoorDragState(null);
+    setUnitDragState(null);
     setRotateState(null);
   };
 
@@ -460,6 +514,20 @@ export default function FloorPlan2D({
   };
 
   const handleTouchMove = (e) => {
+    if (unitDragState && e.touches.length === 1) {
+      // ★ 觸控單指自由拖曳整棟戶型單元
+      const touch = e.touches[0];
+      const worldP = screenToWorld(touch.clientX, touch.clientY);
+      const deltaX = worldP.x - unitDragState.startMouseX;
+      const deltaY = worldP.y - unitDragState.startMouseY;
+      const newOx = Math.round((unitDragState.startOffsetX + deltaX) / 100) * 100;
+      const newOy = Math.round((unitDragState.startOffsetY + deltaY) / 100) * 100;
+      if (onUpdateUnitOffset) {
+        onUpdateUnitOffset(unitDragState.unitId, [newOx, newOy]);
+      }
+      return;
+    }
+
     if (rotateState && e.touches.length === 1) {
       // 觸控單指全角度旋轉
       const touch = e.touches[0];
@@ -572,15 +640,16 @@ export default function FloorPlan2D({
     setDragState(null);
     setWallDragState(null);
     setDoorDragState(null);
+    setUnitDragState(null);
     setRotateState(null);
   };
 
-  // 門扇滑鼠點擊開始拖曳
+  // 門扇滑鼠點擊開始拖曳 (解鎖模式下大門亦可自由拖曳調整位置)
   const handleDoorMouseDown = (e, doorId, door) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     onSelectItem(doorId);
-    if (isPlanLocked || door.entry || door.isLocked) return;
+    if (isPlanLocked) return;
 
     const [x0, y0, x1, y1] = door.rect || [0, 0, 900, 120];
     const doorCx = door.cx !== undefined ? door.cx : Math.round((x0 + x1) / 2);
@@ -596,12 +665,12 @@ export default function FloorPlan2D({
     });
   };
 
-  // 門扇觸控開始
+  // 門扇觸控開始 (解鎖模式下大門亦可自由拖曳調整位置)
   const handleDoorTouchStart = (e, doorId, door) => {
     if (e.touches.length === 1) {
       e.stopPropagation();
       onSelectItem(doorId);
-      if (isPlanLocked || door.entry || door.isLocked) return;
+      if (isPlanLocked) return;
 
       const [x0, y0, x1, y1] = door.rect || [0, 0, 900, 120];
       const doorCx = door.cx !== undefined ? door.cx : Math.round((x0 + x1) / 2);
@@ -724,11 +793,11 @@ export default function FloorPlan2D({
     ...styles.zonePillBtn,
     ...(currentZoneKey === zoneKey
       ? {
-          backgroundColor: '#ea580c',
-          color: '#ffffff',
-          fontWeight: 700,
-          boxShadow: '0 2px 8px rgba(234, 88, 12, 0.35)',
-        }
+        backgroundColor: '#ea580c',
+        color: '#ffffff',
+        fontWeight: 700,
+        boxShadow: '0 2px 8px rgba(234, 88, 12, 0.35)',
+      }
       : {}),
   });
 
@@ -1416,8 +1485,51 @@ export default function FloorPlan2D({
             />
           )}
 
-          {/* 房間地坪與自訂空間分區 */}
-          {space.rooms?.map((rm) => {
+          {/* ★ 當前活躍編輯方案 (套用 spaceOx, spaceOy 世界位移，支援任意拉動拖曳) */}
+          <g id="active-space-group" transform={`translate(${spaceOx}, ${spaceOy})`}>
+            {/* 👑 當前活躍方案銘牌與拖曳把手 */}
+            <g
+              transform="translate(0, -680)"
+              onMouseDown={(e) => handleUnitDragStart(e, space)}
+              onTouchStart={(e) => handleUnitTouchStart(e, space)}
+              style={{ cursor: unitDragState?.unitId === space.id ? 'grabbing' : 'grab' }}
+            >
+              <rect
+                x="0"
+                y="0"
+                width={Math.max(L, 5000)}
+                height="480"
+                rx="24"
+                fill="#0f172a"
+                stroke="#38bdf8"
+                strokeWidth="12"
+                filter="drop-shadow(0 8px 24px rgba(0,0,0,0.35))"
+              />
+              <text x="200" y="300" fill="#ffffff" fontSize="220" fontWeight="900">
+                {`👑 當前方案：${space.name}`}
+              </text>
+              <rect
+                x={Math.max(L, 5000) - 1900}
+                y="60"
+                width="1750"
+                height="360"
+                rx="18"
+                fill="#0284c7"
+              />
+              <text
+                x={Math.max(L, 5000) - 1025}
+                y="300"
+                fill="#ffffff"
+                fontSize="190"
+                fontWeight="900"
+                textAnchor="middle"
+              >
+                ✥ 按住拖曳移動
+              </text>
+            </g>
+
+            {/* 房間地坪與自訂空間分區 */}
+            {space.rooms?.map((rm) => {
             const pts = rm.poly.map((p) => p.join(',')).join(' ');
             const mat = FLOOR_MATERIALS[rm.mat] || FLOOR_MATERIALS.wood;
             const isSelected = selectedItemId === rm.id;
@@ -1688,7 +1800,7 @@ export default function FloorPlan2D({
             );
           })}
 
-          {/* 窗戶 (依據 IMG_0042 藍圖，採用橘色醒目線條) */}
+          {/* 窗戶 (採用橘色醒目線條) */}
           {space.windows?.map((win, idx) => {
             const [x0, y0, x1, y1] = win;
             const wx = Math.min(x0, x1);
@@ -1720,7 +1832,6 @@ export default function FloorPlan2D({
             const doorRot = door.rot !== undefined ? door.rot : (isHorizontal ? 0 : 90);
 
             const isSelected = selectedItemId === door.id;
-            const isLocked = Boolean(door.entry || door.isLocked);
             const doorStrokeColor = door.color || (door.entry ? '#16a34a' : door.isSliding ? '#0284c7' : '#b45309');
 
             return (
@@ -1729,7 +1840,7 @@ export default function FloorPlan2D({
                 transform={`translate(${doorCx}, ${doorCy}) rotate(${doorRot})`}
                 onMouseDown={(e) => handleDoorMouseDown(e, door.id, door)}
                 onTouchStart={(e) => handleDoorTouchStart(e, door.id, door)}
-                style={{ cursor: (isPlanLocked || isLocked) ? 'pointer' : 'move' }}
+                style={{ cursor: isPlanLocked ? 'pointer' : 'move' }}
               >
                 {/* 隱形點擊/觸控擴展熱區 */}
                 <rect
@@ -1967,11 +2078,13 @@ export default function FloorPlan2D({
 
           {/* 工程尺寸標註線 */}
           {renderDimensionLines()}
+          </g>
 
           {/* ★ 多方案並排對比渲染 (同時將其他打勾的可見方案渲染在畫布對應偏移位置) */}
           {comparisonUnits.map((compUnit, cIdx) => {
             const ox = compUnit.offset ? compUnit.offset[0] : 0;
             const oy = compUnit.offset ? compUnit.offset[1] : 0;
+            const cLen = Math.max(compUnit.length || 5300, 5000);
 
             return (
               <g
@@ -1980,20 +2093,50 @@ export default function FloorPlan2D({
                 style={{ cursor: 'pointer' }}
                 onClick={() => onSelectActiveUnit && onSelectActiveUnit(compUnit.id)}
               >
-                {/* 方案銘牌指示卡 */}
-                <g transform="translate(0, -520)">
+                {/* ✦ 對照方案銘牌與拖曳把手 */}
+                <g
+                  transform="translate(0, -680)"
+                  onMouseDown={(e) => handleUnitDragStart(e, compUnit)}
+                  onTouchStart={(e) => handleUnitTouchStart(e, compUnit)}
+                  style={{ cursor: unitDragState?.unitId === compUnit.id ? 'grabbing' : 'grab' }}
+                >
                   <rect
                     x="0"
                     y="0"
-                    width="4800"
-                    height="380"
-                    rx="18"
-                    fill="#1c1917"
-                    opacity="0.92"
-                    filter="drop-shadow(0 4px 12px rgba(0,0,0,0.18))"
+                    width={cLen}
+                    height="480"
+                    rx="24"
+                    fill="#1e293b"
+                    stroke="#94a3b8"
+                    strokeWidth="10"
+                    filter="drop-shadow(0 8px 24px rgba(0,0,0,0.25))"
                   />
-                  <text x="180" y="240" fill="#ffffff" fontSize="180" fontWeight="800">
-                    {`✦ 對照方案：${compUnit.name} (點擊切換為編輯中)`}
+                  <text
+                    x="200"
+                    y="300"
+                    fill="#ffffff"
+                    fontSize="220"
+                    fontWeight="800"
+                  >
+                    {`✦ 對照方案：${compUnit.name} (點擊切換)`}
+                  </text>
+                  <rect
+                    x={cLen - 1900}
+                    y="60"
+                    width="1750"
+                    height="360"
+                    rx="18"
+                    fill="#475569"
+                  />
+                  <text
+                    x={cLen - 1025}
+                    y="300"
+                    fill="#ffffff"
+                    fontSize="190"
+                    fontWeight="900"
+                    textAnchor="middle"
+                  >
+                    ✥ 按住拖曳移動
                   </text>
                 </g>
 
